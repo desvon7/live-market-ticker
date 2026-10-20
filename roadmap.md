@@ -1,5 +1,7 @@
 # Roadmap — OBS Stock Ticker
 
+Implementation order: bottom overlay + real Finnhub relay first, then private dashboard; 1920×1080 transparent OBS canvas.
+
 - [x] Use the user's connected external Supabase project instead of Lovable Cloud
 - [x] Add Finnhub API key secret
 - [ ] Connect Logo.dev + verified ticker→domain map with dashboard overrides
