@@ -1,7 +1,7 @@
 # Roadmap — OBS Stock Ticker
 
 - [x] Use the user's connected external Supabase project instead of Lovable Cloud
-- [ ] Add Finnhub API key secret
+- [x] Add Finnhub API key secret
 - [ ] Connect Logo.dev + verified ticker→domain map with dashboard overrides
 - [ ] Swappable market-data provider adapter (Finnhub now, Polygon/Massive later; overlay untouched)
 - [ ] SPY/QQQ/DIA/IWM labeled as ETFs, never as index values, until index entitlement exists
