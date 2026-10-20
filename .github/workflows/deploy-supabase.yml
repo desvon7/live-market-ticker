@@ -1,0 +1,65 @@
+# Deploys the database migrations, Edge Function secrets and Edge Functions to
+# Supabase. Run it from GitHub → Actions → "Deploy Supabase backend" → Run workflow.
+# Needs these repository secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD, FINNHUB_API_KEY, LOGO_DEV_PUBLISHABLE_KEY
+name: Deploy Supabase backend
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: xghyvoojqntijrdkdliv
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Check secrets are set
+        env:
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          LOGO_DEV_PUBLISHABLE_KEY: ${{ secrets.LOGO_DEV_PUBLISHABLE_KEY }}
+        run: |
+          missing=0
+          for v in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD FINNHUB_API_KEY LOGO_DEV_PUBLISHABLE_KEY; do
+            if [ -z "${!v}" ]; then echo "::error::Repository secret $v is empty or missing"; missing=1; fi
+          done
+          exit $missing
+
+      - name: Link project
+        run: supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Apply migrations
+        run: |
+          if ! supabase db push --password "$SUPABASE_DB_PASSWORD" --include-all; then
+            # The first migration may already exist on the server without being recorded.
+            supabase migration repair --status applied 20261020030325 --password "$SUPABASE_DB_PASSWORD"
+            supabase db push --password "$SUPABASE_DB_PASSWORD" --include-all
+          fi
+
+      - name: Set Edge Function secrets
+        env:
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          LOGO_DEV_PUBLISHABLE_KEY: ${{ secrets.LOGO_DEV_PUBLISHABLE_KEY }}
+        run: supabase secrets set --project-ref "$PROJECT_REF" FINNHUB_API_KEY="$FINNHUB_API_KEY" LOGO_DEV_PUBLISHABLE_KEY="$LOGO_DEV_PUBLISHABLE_KEY"
+
+      - name: Deploy Edge Functions
+        run: |
+          for fn in ticker-relay ticker-control ticker-logo; do
+            supabase functions deploy "$fn" --project-ref "$PROJECT_REF"
+          done
+
+      - name: Smoke test
+        run: |
+          base="https://$PROJECT_REF.supabase.co/functions/v1"
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$base/ticker-relay")
+          echo "ticker-relay without upgrade: $code (expect 426)"; [ "$code" = "426" ]
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" -d '{"action":"status"}' "$base/ticker-control")
+          echo "ticker-control bad link: $code (expect 400)"; [ "$code" = "400" ]
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$base/ticker-logo?symbol=AAPL")
+          echo "ticker-logo AAPL: $code (expect 200)"; [ "$code" = "200" ]
