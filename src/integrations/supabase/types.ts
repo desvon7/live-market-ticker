@@ -14,13 +14,89 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      ticker_channels: {
+        Row: {
+          config: Json
+          control_hash: string
+          created_at: string
+          id: string
+          overlay_hash: string
+          presets: Json
+          previous_config: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          config?: Json
+          control_hash: string
+          created_at?: string
+          id?: string
+          overlay_hash: string
+          presets?: Json
+          previous_config?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          config?: Json
+          control_hash?: string
+          created_at?: string
+          id?: string
+          overlay_hash?: string
+          presets?: Json
+          previous_config?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ticker_relay: {
+        Row: {
+          channel_id: string | null
+          duplicate_at: string | null
+          expires_at: string
+          id: number
+          owner_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          channel_id?: string | null
+          duplicate_at?: string | null
+          expires_at?: string
+          id?: number
+          owner_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          channel_id?: string | null
+          duplicate_at?: string | null
+          expires_at?: string
+          id?: number
+          owner_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticker_relay_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "ticker_channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      claim_ticker_relay: {
+        Args: { p_channel: string; p_owner: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

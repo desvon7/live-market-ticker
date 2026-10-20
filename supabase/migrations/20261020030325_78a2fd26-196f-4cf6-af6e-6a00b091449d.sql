@@ -1,0 +1,15 @@
+CREATE TABLE public.ticker_channels (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL, control_hash text NOT NULL, overlay_hash text NOT NULL, config jsonb NOT NULL DEFAULT '{"symbols":["NVDA","AAPL","MSFT","GOOGL","AMZN","META","AVGO","ORCL"],"etfs":["SPY","QQQ","DIA","IWM"],"mode":"sector","sector":"Information Technology","height":104,"speed":65,"fontSize":20,"logoSize":30,"opacity":95,"paused":false,"direction":"left","showNames":false,"showLogos":true,"showEtfs":true,"news":false,"safeArea":0,"domains":{}}'::jsonb, previous_config jsonb, presets jsonb NOT NULL DEFAULT '{}'::jsonb, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+GRANT SELECT ON public.ticker_channels TO authenticated; GRANT ALL ON public.ticker_channels TO service_role;
+ALTER TABLE public.ticker_channels ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Owners read their channel" ON public.ticker_channels FOR SELECT TO authenticated USING (auth.uid() = user_id);
+CREATE TABLE public.ticker_relay (id integer PRIMARY KEY DEFAULT 1, channel_id uuid REFERENCES public.ticker_channels(id) ON DELETE CASCADE, owner_id uuid, expires_at timestamptz NOT NULL DEFAULT now(), status text NOT NULL DEFAULT 'offline', duplicate_at timestamptz, updated_at timestamptz NOT NULL DEFAULT now());
+GRANT ALL ON public.ticker_relay TO service_role;
+ALTER TABLE public.ticker_relay ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Only trusted relay service" ON public.ticker_relay FOR ALL TO service_role USING (true) WITH CHECK (true);
+INSERT INTO public.ticker_relay(id) VALUES (1);
+CREATE FUNCTION public.ticker_touch_updated() RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$;
+CREATE TRIGGER ticker_channels_updated BEFORE UPDATE ON public.ticker_channels FOR EACH ROW EXECUTE FUNCTION public.ticker_touch_updated();
+CREATE TRIGGER ticker_relay_updated BEFORE UPDATE ON public.ticker_relay FOR EACH ROW EXECUTE FUNCTION public.ticker_touch_updated();
+CREATE FUNCTION public.claim_ticker_relay(p_channel uuid, p_owner uuid) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ DECLARE claimed boolean; BEGIN UPDATE public.ticker_relay SET channel_id=p_channel, owner_id=p_owner, expires_at=now()+interval '45 seconds', status='connecting' WHERE id=1 AND (expires_at <= now() OR owner_id=p_owner); GET DIAGNOSTICS claimed = ROW_COUNT; IF NOT claimed THEN UPDATE public.ticker_relay SET duplicate_at=now() WHERE id=1; END IF; RETURN claimed; END; $$;
+REVOKE ALL ON FUNCTION public.claim_ticker_relay(uuid,uuid) FROM PUBLIC, anon, authenticated; GRANT EXECUTE ON FUNCTION public.claim_ticker_relay(uuid,uuid) TO service_role;
+REVOKE ALL ON FUNCTION public.ticker_touch_updated() FROM PUBLIC, anon, authenticated; GRANT EXECUTE ON FUNCTION public.ticker_touch_updated() TO service_role;
