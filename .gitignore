@@ -30,3 +30,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Edge Function secrets
+supabase/functions/.env
+supabase/.temp

@@ -1,1 +1,13 @@
 project_id = "xghyvoojqntijrdkdliv"
+
+# The overlay (WebSocket, <img>) cannot send an Authorization header, and the
+# project uses a non-JWT publishable key, so these functions check their own
+# secret-link keys instead of Supabase JWTs.
+[functions.ticker-relay]
+verify_jwt = false
+
+[functions.ticker-control]
+verify_jwt = false
+
+[functions.ticker-logo]
+verify_jwt = false

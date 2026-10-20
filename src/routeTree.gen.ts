@@ -10,53 +10,53 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiLogoRouteImport } from './routes/api.logo'
-import { Route as ApiTickerStreamRouteImport } from './routes/api.ticker-stream'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as OverlayRouteImport } from './routes/overlay'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiLogoRoute = ApiLogoRouteImport.update({
-  id: '/api/logo',
-  path: '/api/logo',
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiTickerStreamRoute = ApiTickerStreamRouteImport.update({
-  id: '/api/ticker-stream',
-  path: '/api/ticker-stream',
+const OverlayRoute = OverlayRouteImport.update({
+  id: '/overlay',
+  path: '/overlay',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/api/logo': typeof ApiLogoRoute
-  '/api/ticker-stream': typeof ApiTickerStreamRoute
+  '/dashboard': typeof DashboardRoute
+  '/overlay': typeof OverlayRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/api/logo': typeof ApiLogoRoute
-  '/api/ticker-stream': typeof ApiTickerStreamRoute
+  '/dashboard': typeof DashboardRoute
+  '/overlay': typeof OverlayRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/api/logo': typeof ApiLogoRoute
-  '/api/ticker-stream': typeof ApiTickerStreamRoute
+  '/dashboard': typeof DashboardRoute
+  '/overlay': typeof OverlayRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/logo' | '/api/ticker-stream'
+  fullPaths: '/' | '/dashboard' | '/overlay'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/logo' | '/api/ticker-stream'
-  id: '__root__' | '/' | '/api/logo' | '/api/ticker-stream'
+  to: '/' | '/dashboard' | '/overlay'
+  id: '__root__' | '/' | '/dashboard' | '/overlay'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ApiLogoRoute: typeof ApiLogoRoute
-  ApiTickerStreamRoute: typeof ApiTickerStreamRoute
+  DashboardRoute: typeof DashboardRoute
+  OverlayRoute: typeof OverlayRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -68,18 +68,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/logo': {
-      id: '/api/logo'
-      path: '/api/logo'
-      fullPath: '/api/logo'
-      preLoaderRoute: typeof ApiLogoRouteImport
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/ticker-stream': {
-      id: '/api/ticker-stream'
-      path: '/api/ticker-stream'
-      fullPath: '/api/ticker-stream'
-      preLoaderRoute: typeof ApiTickerStreamRouteImport
+    '/overlay': {
+      id: '/overlay'
+      path: '/overlay'
+      fullPath: '/overlay'
+      preLoaderRoute: typeof OverlayRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -87,8 +87,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ApiLogoRoute: ApiLogoRoute,
-  ApiTickerStreamRoute: ApiTickerStreamRoute,
+  DashboardRoute: DashboardRoute,
+  OverlayRoute: OverlayRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
