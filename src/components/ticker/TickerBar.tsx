@@ -458,9 +458,7 @@ function Headline({ item, config }: { item: NewsItem; config: TickerConfig }) {
         >
           {item.headline}
         </span>
-        <span
-          style={{ fontSize: fs * 0.6, color: "var(--ticker-muted)", letterSpacing: "0.04em" }}
-        >
+        <span style={{ fontSize: fs * 0.6, color: "var(--ticker-muted)", letterSpacing: "0.04em" }}>
           {item.source} · {formatTime(item.datetime * 1000)}
         </span>
       </div>
@@ -502,7 +500,10 @@ function StatusCap({
     dot = "#ff9f0a";
     title = "Paused";
     detail = "Another copy is live";
-  } else if (status === "error" || status === "offline") {
+  } else if (status === "offline") {
+    // Only the dashboard preview is "offline": no overlay is open, so prices are REST snapshots.
+    detail = latest ? `Last price ${formatTime(latest)}` : "Open the overlay to load prices";
+  } else if (status === "error") {
     dot = config.downColor;
     detail = latest ? `Offline · ${formatTime(latest)}` : "Data unavailable";
   }
