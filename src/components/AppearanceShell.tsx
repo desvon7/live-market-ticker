@@ -3,15 +3,21 @@ import { Moon, Sun, Sparkles } from "lucide-react";
 import { Toaster } from "sonner";
 import { Button } from "@/components/ui/button";
 
-type Appearance = "dark" | "light" | "glass";
+export type Appearance = "dark" | "light" | "glass";
 const modes = [
   { value: "dark", label: "Dark", icon: Moon },
   { value: "light", label: "Light", icon: Sun },
   { value: "glass", label: "Apple Glass", icon: Sparkles },
 ] as const;
 
-export function AppearanceShell({ children }: { children?: ReactNode }) {
-  const [appearance, setAppearance] = useState<Appearance>("dark");
+export function AppearanceShell({ children, appearance: controlledAppearance, onAppearanceChange, disabled = false }: {
+  children?: ReactNode;
+  appearance?: Appearance;
+  onAppearanceChange?: (value: Appearance) => void;
+  disabled?: boolean;
+}) {
+  const [localAppearance, setAppearance] = useState<Appearance>("dark");
+  const appearance = controlledAppearance ?? localAppearance;
   useEffect(() => {
     try {
       const saved = localStorage.getItem("javon-journey-appearance");
@@ -20,7 +26,8 @@ export function AppearanceShell({ children }: { children?: ReactNode }) {
   }, []);
 
   const select = (value: Appearance) => {
-    setAppearance(value);
+    if (onAppearanceChange) onAppearanceChange(value);
+    else setAppearance(value);
     try { localStorage.setItem("javon-journey-appearance", value); } catch { /* Session-only choice. */ }
   };
 
@@ -31,7 +38,7 @@ export function AppearanceShell({ children }: { children?: ReactNode }) {
           <span className="font-semibold">Javon Journey</span>
           <div role="group" aria-label="Appearance" className="flex items-center gap-1">
             {modes.map(({ value, label, icon: Icon }) => (
-              <Button key={value} variant={appearance === value ? "secondary" : "ghost"} size="sm" aria-pressed={appearance === value} onClick={() => select(value)}>
+              <Button key={value} variant={appearance === value ? "secondary" : "ghost"} size="sm" aria-pressed={appearance === value} disabled={disabled} onClick={() => select(value)}>
                 <Icon className="size-4" />{label}
               </Button>
             ))}

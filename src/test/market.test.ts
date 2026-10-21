@@ -10,6 +10,14 @@ import {
 } from "@/lib/market";
 
 describe("market config", () => {
+  it.each(["dark", "light", "glass"])("preserves the %s mode through stored overlay settings", (appearance) => {
+    const saved = JSON.parse(JSON.stringify(sanitizeConfig({ ...defaultConfig, appearance })));
+    expect(sanitizeConfig(saved).appearance).toBe(appearance);
+  });
+  it("defaults older or invalid appearance settings to dark", () => {
+    expect(sanitizeConfig({}).appearance).toBe("dark");
+    expect(sanitizeConfig({ appearance: "invalid" }).appearance).toBe("dark");
+  });
   it("launches with the Technology preset: 8 stocks plus the ETF group", () => {
     expect(activeSymbols(defaultConfig)).toEqual([
       "SPY",
