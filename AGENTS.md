@@ -9,4 +9,4 @@
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
 
-- Share interface appearance through AppearanceShell with semantic CSS tokens and browser-local persistence; keep OBS canvas styling independent so dashboard preferences never compromise broadcast transparency.
+- Share interface appearance through AppearanceShell and the persisted ticker configuration; mode selection syncs the dashboard, preview and live strip through the existing config relay, while scoped semantic tokens leave the surrounding OBS canvas transparent.

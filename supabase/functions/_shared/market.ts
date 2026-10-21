@@ -179,6 +179,7 @@ export const speedPresets = { slow: 40, normal: 65, fast: 110 } as const;
 export type SpeedPreset = keyof typeof speedPresets | "custom";
 
 export type TickerConfig = {
+  appearance: "dark" | "light" | "glass";
   mode: TickerMode;
   sector: Sector;
   // Per-mode stock lists. All are editable from the dashboard.
@@ -241,6 +242,7 @@ defaultSectorSymbols["Information Technology"] = [
 ];
 
 export const defaultConfig: TickerConfig = {
+  appearance: "dark",
   mode: "sector",
   sector: "Information Technology",
   topSymbols: defaultTopSymbols,
@@ -398,6 +400,7 @@ export function sanitizeConfig(input: unknown): TickerConfig {
     "custom",
   );
   return {
+    appearance: pick(raw["appearance"], ["dark", "light", "glass"] as const, d.appearance),
     mode: pick(raw["mode"], modes, d.mode),
     sector: pick(raw["sector"], sectors, d.sector),
     topSymbols: list("topSymbols"),

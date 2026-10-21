@@ -144,6 +144,31 @@
 }
 
 /* Interface themes are scoped: OBS retains its independent transparent canvas. */
+[data-ticker-bar] {
+  --ticker-foreground: oklch(0.97 0.003 260);
+  --ticker-muted: oklch(0.8 0.006 260 / 0.75);
+  --ticker-top: oklch(0.23 0.003 260);
+  --ticker-bottom: oklch(0.12 0.003 260);
+  --ticker-border: oklch(1 0 0 / 0.18);
+  --ticker-cap: oklch(1 0 0 / 0.03);
+  --ticker-shadow: 0 -1px 0 oklch(0 0 0 / 0.6);
+}
+[data-overlay-mode="light"], [data-overlay-mode="glass"] {
+  --ticker-foreground: oklch(0.22 0.01 180);
+  --ticker-muted: oklch(0.43 0.01 180);
+  --ticker-top: oklch(1 0 0);
+  --ticker-bottom: oklch(0.94 0.006 180);
+  --ticker-border: oklch(0.4 0.01 180 / 0.2);
+  --ticker-cap: oklch(1 0 0 / 0.25);
+  --ticker-shadow: 0 -1px 16px oklch(0.3 0.01 180 / 0.1);
+}
+[data-overlay-mode="glass"] {
+  --ticker-top: oklch(0.99 0.006 180 / 0.7);
+  --ticker-bottom: oklch(0.93 0.014 180 / 0.4);
+  --ticker-border: oklch(1 0 0 / 0.7);
+  --ticker-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 0 -4px 24px oklch(0.25 0.02 180 / 0.12);
+  backdrop-filter: blur(24px) saturate(150%);
+}
 .appearance-shell {
   --background: oklch(0.98 0.003 180);
   --foreground: oklch(0.23 0.01 180);

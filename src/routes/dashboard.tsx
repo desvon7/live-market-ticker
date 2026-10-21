@@ -234,7 +234,7 @@ function Dashboard() {
     relay?.duplicateAt && Date.now() - Date.parse(relay.duplicateAt) < 120_000;
 
   return (
-    <Shell>
+    <Shell appearance={draft.appearance} disabled={busy} onAppearanceChange={(appearance) => liveControl({ appearance }, "Appearance applied to stream")}>
       <header className="sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-3 px-6 py-3">
           <div className="mr-auto">
@@ -349,8 +349,8 @@ function Dashboard() {
   );
 }
 
-function Shell({ children }: { children?: ReactNode }) {
-  return <AppearanceShell>{children}</AppearanceShell>;
+function Shell(props: React.ComponentProps<typeof AppearanceShell>) {
+  return <AppearanceShell {...props} />;
 }
 
 function Empty({ title, body }: { title: string; body: string }) {
