@@ -24,7 +24,7 @@ export type Database = {
           presets: Json
           previous_config: Json | null
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           config?: Json
@@ -35,7 +35,7 @@ export type Database = {
           presets?: Json
           previous_config?: Json | null
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           config?: Json
@@ -46,7 +46,34 @@ export type Database = {
           presets?: Json
           previous_config?: Json | null
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      ticker_quotes: {
+        Row: {
+          previous_close: number | null
+          price: number
+          quote_time: string
+          source: string
+          symbol: string
+          updated_at: string
+        }
+        Insert: {
+          previous_close?: number | null
+          price: number
+          quote_time: string
+          source: string
+          symbol: string
+          updated_at?: string
+        }
+        Update: {
+          previous_close?: number | null
+          price?: number
+          quote_time?: string
+          source?: string
+          symbol?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -56,8 +83,12 @@ export type Database = {
           duplicate_at: string | null
           expires_at: string
           id: number
+          market: Json | null
+          message: string | null
           owner_id: string | null
+          started_at: string | null
           status: string
+          symbols: string[]
           updated_at: string
         }
         Insert: {
@@ -65,8 +96,12 @@ export type Database = {
           duplicate_at?: string | null
           expires_at?: string
           id?: number
+          market?: Json | null
+          message?: string | null
           owner_id?: string | null
+          started_at?: string | null
           status?: string
+          symbols?: string[]
           updated_at?: string
         }
         Update: {
@@ -74,8 +109,12 @@ export type Database = {
           duplicate_at?: string | null
           expires_at?: string
           id?: number
+          market?: Json | null
+          message?: string | null
           owner_id?: string | null
+          started_at?: string | null
           status?: string
+          symbols?: string[]
           updated_at?: string
         }
         Relationships: [
