@@ -2,12 +2,21 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AppearanceShell } from "@/components/AppearanceShell";
 import { Input } from "@/components/ui/input";
 import { type Access, accessLink, control, randomKey } from "@/lib/market";
 
 export const Route = createFileRoute("/")({
   head: () => ({
-    meta: [{ title: "Market ticker for OBS" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [
+      { title: "Javon Journey | OBS ticker setup" },
+      { name: "description", content: "Set up the Javon Journey live market ticker for OBS." },
+      { property: "og:title", content: "Javon Journey | OBS ticker setup" },
+      { property: "og:description", content: "Set up your live market broadcast ticker." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
   }),
   component: Setup,
 });
@@ -64,7 +73,7 @@ function Setup() {
   };
 
   return (
-    <div className="dark min-h-screen bg-background text-foreground">
+    <AppearanceShell>
       <main className="mx-auto max-w-xl px-6 py-20">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           OBS market ticker
@@ -124,7 +133,7 @@ function Setup() {
           </div>
         )}
       </main>
-    </div>
+    </AppearanceShell>
   );
 }
 
