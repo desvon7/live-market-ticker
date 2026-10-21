@@ -21,12 +21,53 @@ export function accessLink(path: "/overlay" | "/dashboard", access: Access) {
   return `${window.location.origin}${path}#${access.id}.${access.key}`;
 }
 
-export function randomKey() {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return btoa(String.fromCharCode(...bytes))
+// The overlay key is stored on the server encrypted with the dashboard key
+// (AES-GCM, key = SHA-256 of the dashboard key), so every device with the
+// dashboard link can show the overlay link and the server can't read it.
+const toB64url = (bytes: Uint8Array) =>
+  btoa(String.fromCharCode(...bytes))
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
+const fromB64url = (text: string) =>
+  Uint8Array.from(atob(text.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
+async function sealingKey(controlKey: string) {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(`ticker-overlay-seal:${controlKey}`),
+  );
+  return crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["encrypt", "decrypt"]);
+}
+export async function sealOverlayKey(controlKey: string, overlayKey: string) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const data = new Uint8Array(
+    await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv },
+      await sealingKey(controlKey),
+      new TextEncoder().encode(overlayKey),
+    ),
+  );
+  const out = new Uint8Array(iv.length + data.length);
+  out.set(iv);
+  out.set(data, iv.length);
+  return toB64url(out);
+}
+export async function openOverlayKey(controlKey: string, sealed: string) {
+  try {
+    const bytes = fromB64url(sealed);
+    const plain = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: bytes.slice(0, 12) },
+      await sealingKey(controlKey),
+      bytes.slice(12),
+    );
+    return new TextDecoder().decode(plain);
+  } catch {
+    return null;
+  }
+}
+
+export function randomKey() {
+  return toB64url(crypto.getRandomValues(new Uint8Array(32)));
 }
 
 export function logoSrc(

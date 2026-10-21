@@ -37,12 +37,14 @@ import {
   modes,
   normalizeDomain,
   normalizeLogoUrl,
+  openOverlayKey,
   parseAccess,
   parseSymbolList,
   type Quote,
   randomKey,
   registry,
   sanitizeConfig,
+  sealOverlayKey,
   sectors,
   speedPresets,
   type TickerConfig,
@@ -94,6 +96,7 @@ type ReadResponse = LiveState & {
   config: TickerConfig;
   previous: TickerConfig | null;
   presets: Record<string, unknown>;
+  overlaySealed?: string | null;
 };
 
 const draftKey = (id: string) => `ticker-draft:${id}`;
@@ -108,6 +111,7 @@ function Dashboard() {
   const [state, setState] = useState<LiveState>({ relay: null, quotes: [] });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [overlayKey, setOverlayKey] = useState<string | null>(null);
   // The preview shows the draft, so ask the server for the draft's prices too.
   const shown = useMemo(() => (draft ? activeSymbols(draft) : []), [draft]);
   const shownKey = shown.join(",");
@@ -161,6 +165,7 @@ function Dashboard() {
           saved = null;
         }
         setDraftState(saved ?? sanitizeConfig(data.config));
+        void syncOverlayKey(access, data.overlaySealed ?? null).then(setOverlayKey);
       })
       .catch((e: Error) => setError(e.message));
     const timer = setInterval(() => {
@@ -366,7 +371,13 @@ function Dashboard() {
             />
           </TabsContent>
           <TabsContent value="links">
-            <LinksPanel access={access} relay={relay} quotes={state.quotes} />
+            <LinksPanel
+              access={access}
+              relay={relay}
+              quotes={state.quotes}
+              overlayKey={overlayKey}
+              setOverlayKey={setOverlayKey}
+            />
           </TabsContent>
         </Tabs>
       </main>
@@ -1346,22 +1357,46 @@ function PresetPanel({
   );
 }
 
+// The server's sealed copy wins (it follows replacements made on other
+// devices); a key only this browser knows is sealed and uploaded.
+async function syncOverlayKey(access: Access, overlaySealed: string | null) {
+  let local: string | null = null;
+  try {
+    local = localStorage.getItem(overlayKeyStorage(access.id));
+  } catch {
+    // storage unavailable
+  }
+  const opened = overlaySealed ? await openOverlayKey(access.key, overlaySealed) : null;
+  if (opened) {
+    try {
+      localStorage.setItem(overlayKeyStorage(access.id), opened);
+    } catch {
+      // storage unavailable
+    }
+    return opened;
+  }
+  if (local && !overlaySealed)
+    void control({
+      action: "seal",
+      ...access,
+      overlaySealed: await sealOverlayKey(access.key, local),
+    }).catch(() => {});
+  return local;
+}
+
 function LinksPanel({
   access,
   relay,
   quotes,
+  overlayKey,
+  setOverlayKey,
 }: {
   access: Access;
   relay: Relay;
   quotes: CachedQuote[];
+  overlayKey: string | null;
+  setOverlayKey: (key: string) => void;
 }) {
-  const [overlayKey, setOverlayKey] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem(overlayKeyStorage(access.id));
-    } catch {
-      return null;
-    }
-  });
   const copy = (text: string) =>
     navigator.clipboard.writeText(text).then(() => toast.success("Copied"));
   const rotate = async (role: "overlay" | "control") => {
@@ -1375,7 +1410,14 @@ function LinksPanel({
       return;
     const newKey = randomKey();
     try {
-      await control({ action: "rotate", ...access, role, newKey });
+      // Re-seal the overlay key under whichever key is current afterwards.
+      const overlaySealed =
+        role === "overlay"
+          ? await sealOverlayKey(access.key, newKey)
+          : overlayKey
+            ? await sealOverlayKey(newKey, overlayKey)
+            : null;
+      await control({ action: "rotate", ...access, role, newKey, overlaySealed });
       if (role === "overlay") {
         setOverlayKey(newKey);
         try {
@@ -1398,7 +1440,8 @@ function LinksPanel({
       <Card title="Overlay link (OBS Browser Source)">
         <p className="text-xs text-muted-foreground">
           Treat it like a password: anyone with it can display your ticker (but cannot change it).
-          If this browser doesn't have it, create a new one — the old link then stops working.
+          It shows on any device you open this dashboard on. Creating a new one stops the old link,
+          so OBS needs the new one pasted in.
         </p>
         {overlayKey ? (
           <div className="flex gap-2">
@@ -1457,6 +1500,10 @@ function LinksPanel({
         <ol className="list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
           <li>Sources → + → Browser.</li>
           <li>URL: the overlay link. Width 1920, Height 1080.</li>
+          <li>
+            Canvas bigger than 1080p (1440p, 4K)? Keep 1920 × 1080 and scale the source to fill the
+            canvas (right-click → Transform → Fit to screen) so the text keeps its size.
+          </li>
           <li>Leave Custom CSS empty (the page is already transparent).</li>
           <li>Keep "Shutdown source when not visible" off so it stays connected.</li>
           <li>
