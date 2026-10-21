@@ -632,6 +632,25 @@ export function freshness(
   return age < 15 * 60_000 ? "recent" : "stale";
 }
 
+// US markets keep New York time, so "which trading day" is decided in ET.
+const etDayFormat = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/New_York",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+export function etDay(timestamp: number) {
+  return etDayFormat.format(new Date(timestamp));
+}
+
+// The close a trade's daily change is measured against. Before the first
+// trade of a new day, a REST snapshot's own price is the latest close, and its
+// previous close is a session older.
+export function tradeBaseline(snapshot: Quote | null, tradeTime: number): number | null {
+  if (!snapshot) return null;
+  return etDay(tradeTime) > etDay(snapshot.timestamp) ? snapshot.price : snapshot.previousClose;
+}
+
 export function withChange(
   symbol: string,
   price: number,

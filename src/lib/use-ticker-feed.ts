@@ -10,6 +10,7 @@ import {
   sanitizeConfig,
   relayUrl,
   type TickerConfig,
+  tradeBaseline,
   withChange,
 } from "./market";
 
@@ -73,7 +74,7 @@ export function useTickerFeed(access: Access | null): FeedState {
         for (const q of incoming) {
           const existing = quotes[q.symbol];
           if (existing && existing.timestamp > q.timestamp) continue;
-          const previousClose = q.previousClose ?? existing?.previousClose ?? null;
+          const previousClose = q.previousClose ?? tradeBaseline(existing ?? null, q.timestamp);
           quotes[q.symbol] =
             q.previousClose === null && previousClose !== null
               ? withChange(q.symbol, q.price, q.timestamp, previousClose, q.source)

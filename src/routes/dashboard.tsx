@@ -53,9 +53,15 @@ export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [
       { title: "Javon Journey | Ticker control" },
-      { name: "description", content: "Private Javon Journey broadcast ticker controls and appearance settings." },
+      {
+        name: "description",
+        content: "Private Javon Journey broadcast ticker controls and appearance settings.",
+      },
       { property: "og:title", content: "Javon Journey | Ticker control" },
-      { property: "og:description", content: "Private broadcast ticker controls and appearance settings." },
+      {
+        property: "og:description",
+        content: "Private broadcast ticker controls and appearance settings.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "robots", content: "noindex, nofollow" },
@@ -102,6 +108,11 @@ function Dashboard() {
   const [state, setState] = useState<LiveState>({ relay: null, quotes: [] });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // The preview shows the draft, so ask the server for the draft's prices too.
+  const shown = useMemo(() => (draft ? activeSymbols(draft) : []), [draft]);
+  const shownKey = shown.join(",");
+  const shownRef = useRef(shown);
+  shownRef.current = shown;
 
   useEffect(() => {
     const parsed = parseAccess(window.location.hash);
@@ -153,12 +164,20 @@ function Dashboard() {
       })
       .catch((e: Error) => setError(e.message));
     const timer = setInterval(() => {
-      control<LiveState>({ action: "status", ...access })
+      control<LiveState>({ action: "status", ...access, symbols: shownRef.current })
         .then(setState)
         .catch(() => {});
     }, 5000);
     return () => clearInterval(timer);
   }, [access]);
+
+  // Load prices for newly shown symbols now rather than at the next poll.
+  useEffect(() => {
+    if (!access || !shownKey) return;
+    control<LiveState>({ action: "status", ...access, symbols: shownKey.split(",") })
+      .then(setState)
+      .catch(() => {});
+  }, [access, shownKey]);
 
   const publish = async (config: TickerConfig, message = "Applied to stream") => {
     if (!access) return;
@@ -234,7 +253,13 @@ function Dashboard() {
     relay?.duplicateAt && Date.now() - Date.parse(relay.duplicateAt) < 120_000;
 
   return (
-    <Shell appearance={draft.appearance} disabled={busy} onAppearanceChange={(appearance) => liveControl({ appearance }, "Appearance applied to stream")}>
+    <Shell
+      appearance={draft.appearance}
+      disabled={busy}
+      onAppearanceChange={(appearance) =>
+        liveControl({ appearance }, "Appearance applied to stream")
+      }
+    >
       <header className="sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-3 px-6 py-3">
           <div className="mr-auto">

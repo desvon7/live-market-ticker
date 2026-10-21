@@ -3,28 +3,35 @@
 //
 // POST JSON { action, ... }:
 //   create  { controlKey, overlayKey, setupCode? } → { id }      (only when no ticker exists yet)
-//   read    { id, key } → { config, previous, presets, relay, quotes }
-//   status  { id, key } → { relay, quotes }
-//           While no overlay is open, read/status also refresh stale quotes and the
-//           market session from Finnhub's free REST API (at most once a minute per
-//           symbol), so the dashboard shows real prices without OBS running.
+//   read    { id, key, symbols? } → { config, previous, presets, relay, quotes }
+//   status  { id, key, symbols? } → { relay, quotes }
+//           symbols: what the dashboard preview shows (the draft), so it gets prices
+//           too. While no overlay is open, read/status also refresh quotes and the
+//           market session from Finnhub's free REST API, all symbols in one pass so
+//           they update together.
 //   apply   { id, key, config } → { config }   publishes to the overlay, keeps the old one for restore
 //   restore { id, key } → { config }
 //   preset  { id, key, name, config } / deletePreset { id, key, name } → { presets }
 //   rotate  { id, key, role: "control" | "overlay", newKey } → { ok }
 import { admin, keyPattern, sha256, uuidPattern } from "../_shared/db.ts";
 import { corsHeaders, json } from "../_shared/http.ts";
-import { finnhub } from "../_shared/finnhub.ts";
+import { finnhub, ProviderError } from "../_shared/finnhub.ts";
 import {
   activeSymbols,
   defaultConfig,
+  MAX_LIST,
   type MarketSession,
+  normalizeSymbol,
   sanitizeConfig,
 } from "../_shared/market.ts";
 
 const MAX_PRESETS = 30;
-const SNAPSHOT_MAX_AGE_MS = 60_000;
-const SNAPSHOTS_PER_CALL = 15; // keeps well under Finnhub's free 60 calls/minute
+// Finnhub's free plan allows 60 REST calls a minute, so a full refresh of N
+// symbols waits at least N × 1.2 s. Closed-market prices don't move.
+const SNAPSHOT_MS_PER_SYMBOL = 1200;
+const SNAPSHOT_MIN_AGE_MS = 60_000;
+const SNAPSHOT_CLOSED_AGE_MS = 10 * 60_000;
+const SNAPSHOT_CONCURRENCY = 4;
 const MARKET_MAX_AGE_MS = 5 * 60_000;
 
 type Body = Record<string, unknown>;
@@ -63,10 +70,10 @@ Deno.serve(async (req) => {
           config,
           previous: row.previous_config ? sanitizeConfig(row.previous_config) : null,
           presets,
-          ...(await liveState(config)),
+          ...(await liveState(config, body["symbols"])),
         });
       case "status":
-        return json(await liveState(config));
+        return json(await liveState(config, body["symbols"]));
       case "apply": {
         const next = sanitizeConfig(body["config"]);
         await update(id, { config: next, previous_config: config });
@@ -143,8 +150,15 @@ async function create(body: Body) {
   return json({ id: data.id });
 }
 
-async function liveState(config: ReturnType<typeof sanitizeConfig>) {
-  const symbols = [...new Set([...activeSymbols(config), ...config.etfs])];
+async function liveState(config: ReturnType<typeof sanitizeConfig>, requested: unknown) {
+  const shown = Array.isArray(requested) ? requested.map(normalizeSymbol) : [];
+  const symbols = [
+    ...new Set([
+      ...shown.filter((s): s is string => !!s),
+      ...activeSymbols(config),
+      ...config.etfs,
+    ]),
+  ].slice(0, MAX_LIST);
   const [{ data: relay }, { data: cached }] = await Promise.all([
     admin
       .from("ticker_relay")
@@ -217,27 +231,41 @@ async function refreshSnapshots(
       // keep the previous session label
     }
   }
-  const stale = symbols.filter((s) => {
+  // Refresh as one batch: when any symbol is due, everything at least half
+  // due goes too, so the preview's prices change together.
+  const maxAge =
+    market?.session === "closed"
+      ? SNAPSHOT_CLOSED_AGE_MS
+      : Math.max(SNAPSHOT_MIN_AGE_MS, symbols.length * SNAPSHOT_MS_PER_SYMBOL);
+  const age = (s: string) => {
     const row = bySymbol.get(s);
-    return !row || now - Date.parse(row.updated_at) > SNAPSHOT_MAX_AGE_MS;
-  });
+    return row ? now - Date.parse(row.updated_at) : Infinity;
+  };
+  const due = symbols.some((s) => age(s) > maxAge)
+    ? symbols.filter((s) => age(s) > maxAge / 2)
+    : [];
   const rows: CachedRow[] = [];
-  for (const symbol of stale.slice(0, SNAPSHOTS_PER_CALL)) {
-    try {
-      const q = await provider.quote(symbol);
-      if (!q) continue;
-      rows.push({
-        symbol,
-        price: q.price,
-        previous_close: q.previousClose,
-        quote_time: new Date(q.timestamp).toISOString(),
-        source: "snapshot",
-        updated_at: new Date().toISOString(),
-      });
-    } catch {
-      break; // rate limit or provider outage: show what is cached
+  let limited = false;
+  const worker = async () => {
+    for (let symbol = due.shift(); symbol && !limited; symbol = due.shift()) {
+      try {
+        const q = await provider.quote(symbol);
+        if (!q) continue;
+        rows.push({
+          symbol,
+          price: q.price,
+          previous_close: q.previousClose,
+          quote_time: new Date(q.timestamp).toISOString(),
+          source: "snapshot",
+          updated_at: new Date().toISOString(),
+        });
+      } catch (e) {
+        // Rate limit or bad key: show what is cached and try again next poll.
+        if (e instanceof ProviderError && (e.status === 429 || e.status === 401)) limited = true;
+      }
     }
-  }
+  };
+  await Promise.all(Array.from({ length: SNAPSHOT_CONCURRENCY }, worker));
   if (rows.length) {
     await admin.from("ticker_quotes").upsert(rows);
     for (const row of rows) bySymbol.set(row.symbol, row);

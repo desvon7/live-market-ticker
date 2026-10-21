@@ -19,6 +19,7 @@ import {
   RelayClose,
   sanitizeConfig,
   type TickerConfig,
+  tradeBaseline,
   withChange,
 } from "../_shared/market.ts";
 
@@ -170,7 +171,7 @@ async function startSession(
   let lastMarket = 0;
   let lastNews = 0;
   let status: FeedStatus = "connecting";
-  const baselines = new Map<string, number | null>();
+  const baselines = new Map<string, Quote | null>();
   const latest = new Map<string, Quote>();
   const pending = new Map<string, Quote>();
   const dirty = new Set<string>();
@@ -197,29 +198,45 @@ async function startSession(
     symbols = activeSymbols(config);
     setStatus("connecting");
     void admin.from("ticker_relay").update({ symbols }).eq("id", 1).eq("owner_id", access.instance);
-    // REST snapshots give the previous close for daily change and a value to
-    // show when the market is closed (no trades arrive then).
+    // Show the last cached prices at once so no slot sits empty, then replace
+    // them all together with fresh REST snapshots. Snapshots also give the
+    // previous close for daily change and a value to show when no trades arrive.
     const missing = symbols.filter((symbol) => !baselines.has(symbol));
+    const unseen = missing.filter((symbol) => !latest.has(symbol));
+    if (unseen.length) {
+      const { data: cachedRows } = await admin
+        .from("ticker_quotes")
+        .select("symbol, price, previous_close, quote_time")
+        .in("symbol", unseen);
+      if (!alive || generation !== feedGeneration) return;
+      const seeded = (cachedRows ?? []).map((r) =>
+        withChange(r.symbol, r.price, Date.parse(r.quote_time), r.previous_close, "snapshot"),
+      );
+      for (const quote of seeded) latest.set(quote.symbol, quote);
+      if (seeded.length) send({ type: "quotes", quotes: seeded });
+    }
     const batch: Quote[] = [];
     for (const symbol of missing) {
       if (!alive || generation !== feedGeneration) return;
-      try {
-        const quote = await provider.quote(symbol);
-        baselines.set(symbol, quote?.previousClose ?? null);
-        if (quote) {
-          batch.push(quote);
-          record(quote);
-        }
-      } catch (e) {
-        if (e instanceof ProviderError && e.status === 429) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const quote = await provider.quote(symbol);
+          baselines.set(symbol, quote);
+          if (quote) {
+            batch.push(quote);
+            record(quote);
+          }
+          break;
+        } catch (e) {
+          if (e instanceof ProviderError && e.status === 401) {
+            setStatus("error", "Finnhub rejected the API key. Check the FINNHUB_API_KEY secret.");
+            return;
+          }
+          if (!(e instanceof ProviderError && e.status === 429)) break;
           setStatus("error", "Finnhub rate limit reached; waiting for live trades");
           await new Promise((r) => setTimeout(r, 1500));
-        } else if (e instanceof ProviderError && e.status === 401) {
-          setStatus("error", "Finnhub rejected the API key. Check the FINNHUB_API_KEY secret.");
-          return;
         }
       }
-      if (batch.length >= 8) send({ type: "quotes", quotes: batch.splice(0) });
     }
     const cached = symbols.flatMap((symbol) =>
       latest.has(symbol) && !batch.some((q) => q.symbol === symbol) ? [latest.get(symbol)!] : [],
@@ -234,7 +251,8 @@ async function startSession(
           if (!subscribed.has(t.s) || !(t.p > 0) || !(t.t > 0)) continue;
           const previous = pending.get(t.s);
           if (previous && previous.timestamp > t.t) continue;
-          pending.set(t.s, withChange(t.s, t.p, t.t, baselines.get(t.s) ?? null, "trade"));
+          const baseline = tradeBaseline(baselines.get(t.s) ?? null, t.t);
+          pending.set(t.s, withChange(t.s, t.p, t.t, baseline, "trade"));
         }
       },
       (next, message) => setStatus(next, message),
