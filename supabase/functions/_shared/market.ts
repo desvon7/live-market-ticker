@@ -632,7 +632,15 @@ export type FeedEvent =
   | { type: "ping" };
 
 // The overlay's first (and only) message to the relay.
-export type RelayHello = { type: "hello"; id: string; key: string; instance: string };
+// takeover: true on an overlay's first connection after it loads, so the newest
+// copy wins the single connection; reconnects and duplicate retries send false.
+export type RelayHello = {
+  type: "hello";
+  id: string;
+  key: string;
+  instance: string;
+  takeover?: boolean;
+};
 
 // Close codes the relay uses so the overlay knows whether to retry.
 export const RelayClose = {

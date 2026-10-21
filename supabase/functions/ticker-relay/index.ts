@@ -67,7 +67,7 @@ function relay(client: WebSocket) {
     if (started) return;
     started = true;
     clearTimeout(helloTimer);
-    let hello: { type?: string; id?: string; key?: string; instance?: string };
+    let hello: { type?: string; id?: string; key?: string; instance?: string; takeover?: boolean };
     try {
       hello = JSON.parse(String(event.data));
     } catch {
@@ -82,7 +82,12 @@ function relay(client: WebSocket) {
       return close(RelayClose.badRequest, "Invalid hello");
     }
     session = startSession(
-      { id: hello.id!, key: hello.key!, instance: hello.instance! },
+      {
+        id: hello.id!,
+        key: hello.key!,
+        instance: hello.instance!,
+        takeover: hello.takeover === true,
+      },
       send,
       close,
       () => closed,
@@ -97,7 +102,7 @@ function relay(client: WebSocket) {
 }
 
 async function startSession(
-  access: { id: string; key: string; instance: string },
+  access: { id: string; key: string; instance: string; takeover: boolean },
   send: (event: FeedEvent) => void,
   close: (code: number, reason: string) => void,
   isClosed: () => boolean,
@@ -138,6 +143,8 @@ async function startSession(
   const { data: claimed, error: claimError } = await admin.rpc("claim_ticker_relay", {
     p_channel: access.id,
     p_owner: access.instance,
+    // A freshly opened overlay takes over from an older copy; retries never do.
+    p_force: access.takeover,
   });
   if (claimError) {
     send({

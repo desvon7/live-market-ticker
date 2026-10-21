@@ -62,6 +62,9 @@ export function useTickerFeed(access: Access | null): FeedState {
     let attempts = 0;
     let stopped = false;
     let rotating = false;
+    // Newest copy wins: only this page's first connection may take the
+    // connection from another copy, so two open copies never fight over it.
+    let takeover = true;
     let silentTimer: ReturnType<typeof setTimeout> | undefined;
 
     const patch = (next: Partial<FeedState> | ((s: FeedState) => Partial<FeedState>)) =>
@@ -101,8 +104,12 @@ export function useTickerFeed(access: Access | null): FeedState {
       if (stopped) return;
       const ws = new WebSocket(relayUrl);
       socket = ws;
-      ws.onopen = () =>
-        ws.send(JSON.stringify({ type: "hello", id: access!.id, key: access!.key, instance }));
+      ws.onopen = () => {
+        ws.send(
+          JSON.stringify({ type: "hello", id: access!.id, key: access!.key, instance, takeover }),
+        );
+        takeover = false;
+      };
       ws.onmessage = (event) => {
         let data: FeedEvent;
         try {
