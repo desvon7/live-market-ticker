@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { TickerBar } from "@/components/ticker/TickerBar";
-import { type Access, parseAccess } from "@/lib/market";
+import { type Access, defaultConfig, parseAccess } from "@/lib/market";
 import { useTickerFeed } from "@/lib/use-ticker-feed";
 
 // OBS Browser Source: 1920 × 1080, transparent everywhere except the ticker.
@@ -10,9 +10,15 @@ export const Route = createFileRoute("/overlay")({
   head: () => ({
     meta: [
       { title: "Javon Journey | Live ticker overlay" },
-      { name: "description", content: "Transparent Javon Journey market ticker overlay for OBS broadcasts." },
+      {
+        name: "description",
+        content: "Transparent Javon Journey market ticker overlay for OBS broadcasts.",
+      },
       { property: "og:title", content: "Javon Journey | Live ticker overlay" },
-      { property: "og:description", content: "Live market prices in a transparent broadcast overlay." },
+      {
+        property: "og:description",
+        content: "Live market prices in a transparent broadcast overlay.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "robots", content: "noindex, nofollow" },
@@ -39,15 +45,36 @@ function Overlay() {
   }, []);
   const feed = useTickerFeed(access ?? null);
 
+  // The hosting badge must never appear on the broadcast canvas.
+  useEffect(() => {
+    const hide = () => {
+      for (const el of document.querySelectorAll<HTMLElement>(
+        '#lovable-badge, [id^="lovable-badge"], a[href*="lovable.dev"]',
+      )) {
+        el.style.setProperty("display", "none", "important");
+      }
+    };
+    hide();
+    const observer = new MutationObserver(hide);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div style={{ position: "fixed", inset: 0, overflow: "hidden", background: "transparent" }}>
-      <style>{"html,body{background:transparent!important;margin:0;overflow:hidden}"}</style>
+      <style>
+        {
+          'html,body{background:transparent!important;margin:0;overflow:hidden}#lovable-badge,[id^="lovable-badge"]{display:none!important}'
+        }
+      </style>
       {access === null && (
         <Notice text="Overlay link missing its key. Copy the overlay link from your dashboard." />
       )}
-      {access && feed.config && (
+      {/* Draw the bar from the first frame (default look until the relay sends the
+          saved settings) so OBS always shows the ticker or a status explaining why not. */}
+      {access && (
         <TickerBar
-          config={feed.config}
+          config={feed.config ?? defaultConfig}
           channelId={access.id}
           quotes={feed.quotes}
           sparks={feed.sparks}
