@@ -2,9 +2,12 @@
 // key from the secret link; keys are only ever stored as SHA-256 hashes.
 //
 // POST JSON { action, ... }:
-//   exists  {} → { exists }                                       (no key; lets setup ask for a link)
-//   create  { controlKey, overlayKey, overlaySealed?, setupCode? } → { id }   (only when none exists)
-//   read    { id, key, symbols? } → { config, previous, presets, overlaySealed, relay, quotes }
+//   exists  {} → { exists, publicSite }                           (no key; lets setup ask for a link)
+//   create  { controlKey, overlayKey, overlaySealed?, site?, setupCode? } → { id }  (only when none exists)
+//   read    { id, key, symbols?, site? } → { config, previous, presets, overlaySealed, publicSite, relay, quotes }
+//           site: the page's address when it isn't a Lovable preview. The server keeps
+//           the latest one so links copied inside a preview point at the published site
+//           (preview addresses ask OBS for a Lovable login). Only keyed calls can set it.
 //   status  { id, key, symbols? } → { relay, quotes }
 //           symbols: what the dashboard preview shows (the draft), so it gets prices
 //           too. While no overlay is open, read/status also refresh quotes and the
@@ -25,6 +28,7 @@ import {
   defaultConfig,
   MAX_LIST,
   type MarketSession,
+  normalizeOrigin,
   normalizeSymbol,
   sanitizeConfig,
 } from "../_shared/market.ts";
@@ -58,7 +62,8 @@ Deno.serve(async (req) => {
         .from("ticker_channels")
         .select("id", { count: "exact", head: true });
       if (error) return json({ error: "Database unavailable" }, 503);
-      return json({ exists: (count ?? 0) > 0 });
+      const { data: site } = await admin.from("ticker_channels").select("public_site").limit(1);
+      return json({ exists: (count ?? 0) > 0, publicSite: site?.[0]?.public_site ?? null });
     }
     const id = str(body["id"]);
     const key = str(body["key"]);
@@ -81,7 +86,7 @@ Deno.serve(async (req) => {
           config,
           previous: row.previous_config ? sanitizeConfig(row.previous_config) : null,
           presets,
-          overlaySealed: await readSealed(id),
+          ...(await readExtras(id, body["site"])),
           ...(await liveState(config, body["symbols"])),
         });
       case "status":
@@ -140,15 +145,24 @@ Deno.serve(async (req) => {
 const sealedPattern = /^[A-Za-z0-9_-]{40,200}$/;
 const sealed = (value: unknown) => (sealedPattern.test(str(value)) ? str(value) : null);
 
-// overlay_sealed comes from a later migration; until it is applied, links
-// still work and only cross-device overlay links are unavailable.
-async function readSealed(id: string): Promise<string | null> {
+// overlay_sealed and public_site come from later migrations; until they are
+// applied, links still work and only these conveniences are unavailable.
+async function readExtras(id: string, site: unknown) {
   const { data, error } = await admin
     .from("ticker_channels")
-    .select("overlay_sealed")
+    .select("overlay_sealed, public_site")
     .eq("id", id)
     .maybeSingle();
-  return error ? null : ((data?.overlay_sealed as string | null) ?? null);
+  if (error) return { overlaySealed: null, publicSite: null };
+  let publicSite = (data?.public_site as string | null) ?? null;
+  const reported = normalizeOrigin(site);
+  if (reported && reported !== publicSite && (await storeSite(id, reported))) publicSite = reported;
+  return { overlaySealed: (data?.overlay_sealed as string | null) ?? null, publicSite };
+}
+async function storeSite(id: string, site: string) {
+  const { error } = await admin.from("ticker_channels").update({ public_site: site }).eq("id", id);
+  if (error) console.error("public_site unavailable", error.message);
+  return !error;
 }
 async function storeSealed(id: string, value: string | null) {
   const { error } = await admin
@@ -190,6 +204,8 @@ async function create(body: Body) {
   if (error || !data) throw error ?? new Error("Insert failed");
   const seal = sealed(body["overlaySealed"]);
   if (seal) await storeSealed(data.id, seal);
+  const site = normalizeOrigin(body["site"]);
+  if (site) await storeSite(data.id, site);
   return json({ id: data.id });
 }
 

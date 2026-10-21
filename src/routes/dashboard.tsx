@@ -26,6 +26,7 @@ import {
   accessLink,
   activeSymbols,
   control,
+  currentSite,
   defaultConfig,
   etfSymbols,
   type FeedStatus,
@@ -44,6 +45,7 @@ import {
   type Quote,
   randomKey,
   registry,
+  rememberSite,
   sanitizeConfig,
   sealOverlayKey,
   sectors,
@@ -98,6 +100,7 @@ type ReadResponse = LiveState & {
   previous: TickerConfig | null;
   presets: Record<string, unknown>;
   overlaySealed?: string | null;
+  publicSite?: string | null;
 };
 
 const draftKey = (id: string) => `ticker-draft:${id}`;
@@ -150,8 +153,9 @@ function Dashboard() {
 
   useEffect(() => {
     if (!access) return;
-    control<ReadResponse>({ action: "read", ...access })
+    control<ReadResponse>({ action: "read", ...access, site: currentSite() })
       .then((data) => {
+        rememberSite(data.publicSite);
         setLive(sanitizeConfig(data.config));
         setPrevious(data.previous ? sanitizeConfig(data.previous) : null);
         setPresets(
@@ -1441,9 +1445,9 @@ function LinksPanel({
       <Card title="Overlay link (OBS Browser Source)">
         {linksNeedLogin() && (
           <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-            You&apos;re on Lovable&apos;s private preview, so this link would ask OBS to log in to
-            Lovable. Publish the site, open this dashboard on the published address, and copy the
-            overlay link from there.
+            This link is on Lovable&apos;s private preview address, which would ask OBS to log in.
+            Publish the site and open this dashboard on the published address once; after that,
+            links copied anywhere use the published address automatically.
           </p>
         )}
         <p className="text-xs text-muted-foreground">

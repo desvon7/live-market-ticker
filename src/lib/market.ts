@@ -1,5 +1,9 @@
 export * from "../../supabase/functions/_shared/market.ts";
-import type { Quote } from "../../supabase/functions/_shared/market.ts";
+import {
+  isLovablePreview,
+  normalizeOrigin,
+  type Quote,
+} from "../../supabase/functions/_shared/market.ts";
 
 // Browser-safe settings only: the publishable URL of the Supabase project.
 // Provider and logo keys live in Supabase Edge Function secrets.
@@ -17,19 +21,37 @@ export function parseAccess(hash: string): Access | null {
   return match ? { id: match[1] as string, key: match[2] as string } : null;
 }
 
-// Lovable's editor preview addresses ask for a Lovable login, which OBS can't
-// do, so links are built on the published site when VITE_PUBLIC_SITE_URL is set.
-const publicSiteUrl = String(import.meta.env["VITE_PUBLIC_SITE_URL"] ?? "").replace(/\/+$/, "");
-export function isLovablePreview(host = window.location.hostname) {
-  return (
-    /(^|\.)lovableproject(-dev)?\.com$/.test(host) ||
-    (/\.lovable\.app$/.test(host) && /^(id-)?preview-/.test(host))
-  );
+const siteStorageKey = "ticker-public-site";
+
+// Links copied on a Lovable preview address would ask OBS for a Lovable login,
+// so they use the published site: VITE_PUBLIC_SITE_URL if set, else the address
+// the server remembers from the last time the dashboard ran outside a preview.
+const configuredSite = normalizeOrigin(import.meta.env["VITE_PUBLIC_SITE_URL"]);
+const onPreview = () => isLovablePreview(window.location.hostname);
+let rememberedSite: string | null = null;
+try {
+  rememberedSite = normalizeOrigin(localStorage.getItem(siteStorageKey));
+} catch {
+  // storage unavailable
 }
+/** Sent to the server so it can remember the published address; null on a preview. */
+export const currentSite = () => (onPreview() ? null : normalizeOrigin(window.location.origin));
+export function rememberSite(origin: unknown) {
+  const site = normalizeOrigin(origin);
+  if (!site) return;
+  rememberedSite = site;
+  try {
+    localStorage.setItem(siteStorageKey, site);
+  } catch {
+    // storage unavailable
+  }
+}
+const linkSite = () =>
+  configuredSite ?? (onPreview() ? rememberedSite : null) ?? window.location.origin;
 export function accessLink(path: "/overlay" | "/dashboard", access: Access) {
-  return `${publicSiteUrl || window.location.origin}${path}#${access.id}.${access.key}`;
+  return `${linkSite()}${path}#${access.id}.${access.key}`;
 }
-export const linksNeedLogin = () => !publicSiteUrl && isLovablePreview();
+export const linksNeedLogin = () => isLovablePreview(new URL(linkSite()).hostname);
 
 // The overlay key is stored on the server encrypted with the dashboard key
 // (AES-GCM, key = SHA-256 of the dashboard key), so every device with the
