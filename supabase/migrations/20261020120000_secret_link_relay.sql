@@ -1,3 +1,4 @@
+-- Idempotent: Lovable also applied these statements in its 20261021145556 migration.
 -- Secret-link access: the dashboard and overlay authenticate with long random
 -- keys (stored only as SHA-256 hashes). Only Edge Functions using the service
 -- role read or write these tables.
@@ -28,4 +29,5 @@ CREATE TABLE IF NOT EXISTS public.ticker_quotes (
 ALTER TABLE public.ticker_quotes ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.ticker_quotes FROM anon, authenticated;
 GRANT ALL ON public.ticker_quotes TO service_role;
+DROP POLICY IF EXISTS "Only trusted relay service" ON public.ticker_quotes;
 CREATE POLICY "Only trusted relay service" ON public.ticker_quotes FOR ALL TO service_role USING (true) WITH CHECK (true);
