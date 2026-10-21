@@ -51,7 +51,6 @@ export function TickerBar(props: TickerBarProps) {
   const symbols = useMemo(() => activeSymbols(config, now), [config, Math.floor(now / 60_000)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const height = config.height;
-  const alpha = config.opacity / 100;
   const style: CSSProperties = {
     position: props.embedded ? "relative" : "absolute",
     bottom: 0,
