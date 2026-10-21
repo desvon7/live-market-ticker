@@ -11,6 +11,7 @@ import {
 import {
   activeSymbols,
   formatChange,
+  formatDate,
   formatPrice,
   formatTime,
   freshness,
@@ -51,7 +52,6 @@ export function TickerBar(props: TickerBarProps) {
   const symbols = useMemo(() => activeSymbols(config, now), [config, Math.floor(now / 60_000)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const height = config.height;
-  const alpha = config.opacity / 100;
   const style: CSSProperties = {
     position: props.embedded ? "relative" : "absolute",
     bottom: 0,
@@ -61,13 +61,13 @@ export function TickerBar(props: TickerBarProps) {
     display: "flex",
     alignItems: "stretch",
     overflow: "hidden",
-    color: config.textColor,
+    color: config.appearance === "dark" ? config.textColor : "var(--ticker-foreground)",
     fontFamily: font,
     fontSize: config.fontSize,
     fontFeatureSettings: '"tnum" 1, "lnum" 1',
-    background: `linear-gradient(180deg, rgba(28,28,30,${alpha}) 0%, rgba(10,10,12,${alpha}) 55%, rgba(4,4,6,${alpha}) 100%)`,
-    borderTop: `1px solid rgba(255,255,255,${0.12 * alpha})`,
-    boxShadow: `0 -1px 0 rgba(0,0,0,${0.6 * alpha})`,
+    background: `linear-gradient(180deg, color-mix(in oklab, var(--ticker-top) ${config.opacity}%, transparent), color-mix(in oklab, var(--ticker-bottom) ${config.opacity}%, transparent))`,
+    borderTop: "1px solid var(--ticker-border)",
+    boxShadow: "var(--ticker-shadow)",
     WebkitFontSmoothing: "antialiased",
   };
 
@@ -99,7 +99,7 @@ export function TickerBar(props: TickerBarProps) {
   }
 
   return (
-    <div style={style} data-ticker-bar>
+    <div style={style} data-ticker-bar data-overlay-mode={config.appearance ?? "dark"}>
       {config.showStatus && <StatusCap {...props} now={now} />}
       <Scroller config={config}>{items}</Scroller>
     </div>
@@ -205,7 +205,7 @@ const Divider = () => (
       width: 1,
       alignSelf: "stretch",
       margin: "22% 0",
-      background: "rgba(255,255,255,0.12)",
+      background: "var(--ticker-border)",
     }}
   />
 );
@@ -229,7 +229,7 @@ const TickerItem = memo(function TickerItem({
   const change = quote ? formatChange(quote) : null;
   const direction = !quote?.change ? 0 : quote.change > 0 ? 1 : -1;
   const color =
-    direction > 0 ? config.upColor : direction < 0 ? config.downColor : "rgba(235,235,245,0.6)";
+    direction > 0 ? config.upColor : direction < 0 ? config.downColor : "var(--ticker-muted)";
   const fresh = freshness(quote, now);
   const flash = useFlash(quote?.price);
   const name = registry[symbol]?.name;
@@ -257,8 +257,8 @@ const TickerItem = memo(function TickerItem({
               letterSpacing: "0.08em",
               padding: "0.15em 0.45em",
               borderRadius: 4,
-              border: "1px solid rgba(255,255,255,0.28)",
-              color: "rgba(235,235,245,0.75)",
+              border: "1px solid var(--ticker-border)",
+              color: "var(--ticker-muted)",
             }}
           >
             ETF
@@ -268,7 +268,7 @@ const TickerItem = memo(function TickerItem({
           <span
             style={{
               fontSize: fs * 0.72,
-              color: "rgba(235,235,245,0.6)",
+              color: "var(--ticker-muted)",
               maxWidth: fs * 12,
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -426,7 +426,7 @@ function SectionLabel({ label, config }: { label: string; config: TickerConfig }
           fontWeight: 700,
           letterSpacing: "0.14em",
           textTransform: "uppercase",
-          color: "rgba(235,235,245,0.55)",
+          color: "var(--ticker-muted)",
         }}
       >
         {label}
@@ -459,9 +459,7 @@ function Headline({ item, config }: { item: NewsItem; config: TickerConfig }) {
         >
           {item.headline}
         </span>
-        <span
-          style={{ fontSize: fs * 0.6, color: "rgba(235,235,245,0.55)", letterSpacing: "0.04em" }}
-        >
+        <span style={{ fontSize: fs * 0.6, color: "var(--ticker-muted)", letterSpacing: "0.04em" }}>
           {item.source} · {formatTime(item.datetime * 1000)}
         </span>
       </div>
@@ -489,12 +487,12 @@ function StatusCap({
   const anyLive = Object.values(quotes).some((q) => freshness(q, now) === "live");
   let dot = "#8e8e93";
   let title = market ? sessionLabel[market.session] : "Markets";
-  let detail = latest ? `As of ${formatTime(latest, now)}` : "Loading quotes";
+  let detail = latest ? `As of ${formatTime(latest)}` : "Loading quotes";
   if (status === "connected" && anyLive) {
     dot = config.upColor;
     detail = "Live trades";
   } else if (market?.isOpen === false || market?.session === "closed") {
-    detail = latest ? `Last trade ${formatTime(latest, now)}` : "Last close";
+    detail = latest ? `Last trade ${formatTime(latest)}` : "Last close";
   }
   if (status === "reconnecting" || status === "connecting") {
     dot = "#ffd60a";
@@ -503,14 +501,18 @@ function StatusCap({
     dot = "#ff9f0a";
     title = "Paused";
     detail = "Another copy is live";
-  } else if (status === "error" || status === "offline") {
+  } else if (status === "offline") {
+    // Only the dashboard preview is "offline": no overlay is open, so prices are REST snapshots.
+    detail = latest ? `Last price ${formatTime(latest)}` : "Open the overlay to load prices";
+  } else if (status === "error") {
     dot = config.downColor;
-    detail = latest ? `Offline · ${formatTime(latest, now)}` : "Data unavailable";
+    detail = latest ? `Offline · ${formatTime(latest)}` : "Data unavailable";
   }
   const fs = config.fontSize;
   return (
     <div
-      title={message ?? undefined}
+      title={[title, detail, message].filter(Boolean).join(" · ")}
+      aria-label={`Subscribe to Javon Journey. ${title}. ${detail}${latest ? `. ${formatDate(latest)}` : ""}`}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -519,8 +521,8 @@ function StatusCap({
         padding: `0 ${fs * 1.1}px`,
         minWidth: fs * 9.5,
         flexShrink: 0,
-        borderRight: "1px solid rgba(255,255,255,0.1)",
-        background: "rgba(255,255,255,0.03)",
+        borderRight: "1px solid var(--ticker-border)",
+        background: "var(--ticker-cap)",
       }}
     >
       <span
@@ -543,11 +545,19 @@ function StatusCap({
             boxShadow: dot === config.upColor ? `0 0 0 3px ${dot}22` : undefined,
           }}
         />
-        {title}
+        Subscribe
       </span>
-      <span style={{ fontSize: fs * 0.58, color: "rgba(235,235,245,0.6)", whiteSpace: "nowrap" }}>
+      <span style={{ fontSize: fs * 0.74, fontWeight: 650, whiteSpace: "nowrap" }}>
+        Javon Journey
+      </span>
+      <span style={{ fontSize: fs * 0.58, color: "var(--ticker-muted)", whiteSpace: "nowrap" }}>
         {detail}
       </span>
+      {latest > 0 && (
+        <span style={{ fontSize: fs * 0.52, color: "var(--ticker-muted)", whiteSpace: "nowrap" }}>
+          {formatDate(latest)}
+        </span>
+      )}
     </div>
   );
 }

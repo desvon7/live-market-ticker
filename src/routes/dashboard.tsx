@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { toast, Toaster } from "sonner";
+import { toast } from "sonner";
+import { AppearanceShell } from "@/components/AppearanceShell";
 import {
   ArrowDown,
   ArrowUp,
@@ -50,7 +51,15 @@ import {
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
-    meta: [{ title: "Ticker control" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [
+      { title: "Javon Journey | Ticker control" },
+      { name: "description", content: "Private Javon Journey broadcast ticker controls and appearance settings." },
+      { property: "og:title", content: "Javon Journey | Ticker control" },
+      { property: "og:description", content: "Private broadcast ticker controls and appearance settings." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
   }),
   component: Dashboard,
 });
@@ -225,7 +234,7 @@ function Dashboard() {
     relay?.duplicateAt && Date.now() - Date.parse(relay.duplicateAt) < 120_000;
 
   return (
-    <Shell>
+    <Shell appearance={draft.appearance} disabled={busy} onAppearanceChange={(appearance) => liveControl({ appearance }, "Appearance applied to stream")}>
       <header className="sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-3 px-6 py-3">
           <div className="mr-auto">
@@ -269,7 +278,7 @@ function Dashboard() {
             The free Finnhub plan allows one live connection, so the extra copy is paused and
             retries every 15 seconds. Close duplicate OBS browser sources (or other open overlay
             tabs) that use this overlay link. Last attempt{" "}
-            {new Date(relay!.duplicateAt!).toLocaleTimeString()}.
+            {relay?.duplicateAt ? new Date(relay.duplicateAt).toLocaleTimeString() : ""}.
           </Banner>
         )}
         {relay && !relay.hasProviderKey && (
@@ -298,7 +307,7 @@ function Dashboard() {
         </section>
 
         <Tabs defaultValue="selection">
-          <TabsList>
+          <TabsList className="h-auto max-w-full flex-wrap justify-start">
             <TabsTrigger value="selection">Selection</TabsTrigger>
             <TabsTrigger value="appearance">Appearance</TabsTrigger>
             <TabsTrigger value="motion">Motion</TabsTrigger>
@@ -340,13 +349,8 @@ function Dashboard() {
   );
 }
 
-function Shell({ children }: { children?: ReactNode }) {
-  return (
-    <div className="dark min-h-screen bg-background text-foreground">
-      <Toaster theme="dark" position="bottom-right" />
-      {children}
-    </div>
-  );
+function Shell(props: React.ComponentProps<typeof AppearanceShell>) {
+  return <AppearanceShell {...props} />;
 }
 
 function Empty({ title, body }: { title: string; body: string }) {
@@ -561,7 +565,7 @@ function Range({
 
 const selectClass =
   "h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
-const optionClass = "bg-zinc-900";
+const optionClass = "bg-popover text-popover-foreground";
 
 function SymbolList({
   value,

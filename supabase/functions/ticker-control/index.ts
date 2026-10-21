@@ -5,15 +5,27 @@
 //   create  { controlKey, overlayKey, setupCode? } → { id }      (only when no ticker exists yet)
 //   read    { id, key } → { config, previous, presets, relay, quotes }
 //   status  { id, key } → { relay, quotes }
+//           While no overlay is open, read/status also refresh stale quotes and the
+//           market session from Finnhub's free REST API (at most once a minute per
+//           symbol), so the dashboard shows real prices without OBS running.
 //   apply   { id, key, config } → { config }   publishes to the overlay, keeps the old one for restore
 //   restore { id, key } → { config }
 //   preset  { id, key, name, config } / deletePreset { id, key, name } → { presets }
 //   rotate  { id, key, role: "control" | "overlay", newKey } → { ok }
 import { admin, keyPattern, sha256, uuidPattern } from "../_shared/db.ts";
 import { corsHeaders, json } from "../_shared/http.ts";
-import { activeSymbols, defaultConfig, sanitizeConfig } from "../_shared/market.ts";
+import { finnhub } from "../_shared/finnhub.ts";
+import {
+  activeSymbols,
+  defaultConfig,
+  type MarketSession,
+  sanitizeConfig,
+} from "../_shared/market.ts";
 
 const MAX_PRESETS = 30;
+const SNAPSHOT_MAX_AGE_MS = 60_000;
+const SNAPSHOTS_PER_CALL = 15; // keeps well under Finnhub's free 60 calls/minute
+const MARKET_MAX_AGE_MS = 5 * 60_000;
 
 type Body = Record<string, unknown>;
 const str = (value: unknown) => (typeof value === "string" ? value : "");
@@ -132,7 +144,8 @@ async function create(body: Body) {
 }
 
 async function liveState(config: ReturnType<typeof sanitizeConfig>) {
-  const [{ data: relay }, { data: quotes }] = await Promise.all([
+  const symbols = [...new Set([...activeSymbols(config), ...config.etfs])];
+  const [{ data: relay }, { data: cached }] = await Promise.all([
     admin
       .from("ticker_relay")
       .select("status, message, expires_at, duplicate_at, market, symbols, started_at, updated_at")
@@ -140,10 +153,19 @@ async function liveState(config: ReturnType<typeof sanitizeConfig>) {
       .maybeSingle(),
     admin
       .from("ticker_quotes")
-      .select("symbol, price, previous_close, quote_time, source")
-      .in("symbol", [...new Set([...activeSymbols(config), ...config.etfs])]),
+      .select("symbol, price, previous_close, quote_time, source, updated_at")
+      .in("symbol", symbols),
   ]);
   const live = !!relay && Date.parse(relay.expires_at) > Date.now();
+  let quotes = cached ?? [];
+  let market = (relay?.market ?? null) as MarketSession | null;
+  // The relay keeps the cache fresh while OBS is open; otherwise use REST snapshots.
+  const apiKey = Deno.env.get("FINNHUB_API_KEY");
+  if (!live && apiKey) {
+    const refreshed = await refreshSnapshots(apiKey, symbols, quotes, market);
+    quotes = refreshed.quotes;
+    market = refreshed.market;
+  }
   return {
     relay: relay
       ? {
@@ -151,15 +173,15 @@ async function liveState(config: ReturnType<typeof sanitizeConfig>) {
           status: live ? relay.status : "offline",
           message: live ? relay.message : null,
           duplicateAt: relay.duplicate_at,
-          market: relay.market,
+          market,
           symbols: live ? relay.symbols : [],
           startedAt: relay.started_at,
           updatedAt: relay.updated_at,
-          hasProviderKey: !!Deno.env.get("FINNHUB_API_KEY"),
+          hasProviderKey: !!apiKey,
           hasLogoKey: !!Deno.env.get("LOGO_DEV_PUBLISHABLE_KEY"),
         }
       : null,
-    quotes: (quotes ?? []).map((q) => ({
+    quotes: quotes.map((q) => ({
       symbol: q.symbol,
       price: q.price,
       previousClose: q.previous_close,
@@ -167,4 +189,58 @@ async function liveState(config: ReturnType<typeof sanitizeConfig>) {
       source: q.source,
     })),
   };
+}
+
+type CachedRow = {
+  symbol: string;
+  price: number;
+  previous_close: number | null;
+  quote_time: string;
+  source: string;
+  updated_at: string;
+};
+
+async function refreshSnapshots(
+  apiKey: string,
+  symbols: string[],
+  cached: CachedRow[],
+  market: MarketSession | null,
+) {
+  const provider = finnhub(apiKey);
+  const bySymbol = new Map(cached.map((q) => [q.symbol, q]));
+  const now = Date.now();
+  if (!market || now - (market.checkedAt ?? 0) > MARKET_MAX_AGE_MS) {
+    try {
+      market = await provider.marketStatus();
+      await admin.from("ticker_relay").update({ market }).eq("id", 1);
+    } catch {
+      // keep the previous session label
+    }
+  }
+  const stale = symbols.filter((s) => {
+    const row = bySymbol.get(s);
+    return !row || now - Date.parse(row.updated_at) > SNAPSHOT_MAX_AGE_MS;
+  });
+  const rows: CachedRow[] = [];
+  for (const symbol of stale.slice(0, SNAPSHOTS_PER_CALL)) {
+    try {
+      const q = await provider.quote(symbol);
+      if (!q) continue;
+      rows.push({
+        symbol,
+        price: q.price,
+        previous_close: q.previousClose,
+        quote_time: new Date(q.timestamp).toISOString(),
+        source: "snapshot",
+        updated_at: new Date().toISOString(),
+      });
+    } catch {
+      break; // rate limit or provider outage: show what is cached
+    }
+  }
+  if (rows.length) {
+    await admin.from("ticker_quotes").upsert(rows);
+    for (const row of rows) bySymbol.set(row.symbol, row);
+  }
+  return { quotes: [...bySymbol.values()], market };
 }

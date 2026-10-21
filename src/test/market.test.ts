@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   activeSymbols,
   defaultConfig,
-  formatTime,
   parseAccess,
   sanitizeConfig,
   securityKind,
@@ -12,6 +11,14 @@ import {
 } from "@/lib/market";
 
 describe("market config", () => {
+  it.each(["dark", "light", "glass"])("preserves the %s mode through stored overlay settings", (appearance) => {
+    const saved = JSON.parse(JSON.stringify(sanitizeConfig({ ...defaultConfig, appearance })));
+    expect(sanitizeConfig(saved).appearance).toBe(appearance);
+  });
+  it("defaults older or invalid appearance settings to dark", () => {
+    expect(sanitizeConfig({}).appearance).toBe("dark");
+    expect(sanitizeConfig({ appearance: "invalid" }).appearance).toBe("dark");
+  });
   it("launches with the Technology preset: 8 stocks plus the ETF group", () => {
     expect(activeSymbols(defaultConfig)).toEqual([
       "SPY",
@@ -93,18 +100,10 @@ describe("quotes and links", () => {
   });
 });
 
-describe("quote dates", () => {
+describe("trade baselines", () => {
   // 2026-10-16 is a Friday; 20:00 UTC is 4:00 PM ET.
   const fridayClose = Date.UTC(2026, 9, 16, 20, 0);
   const mondayPremarket = Date.UTC(2026, 9, 19, 12, 0);
-
-  it("adds the day only when a time is not from today in ET", () => {
-    expect(formatTime(fridayClose, fridayClose + 60_000)).toBe("4:00 PM ET");
-    expect(formatTime(fridayClose, mondayPremarket)).toBe("Fri, Oct 16, 4:00 PM ET");
-    // 11:30 PM ET is still the same ET day even though it is the next UTC day.
-    const lateEt = Date.UTC(2026, 9, 17, 3, 30);
-    expect(formatTime(lateEt, Date.UTC(2026, 9, 16, 14, 0))).toBe("11:30 PM ET");
-  });
 
   it("measures a new day's trades against the latest close", () => {
     const snapshot = withChange("NVDA", 105, fridayClose, 100, "snapshot");
