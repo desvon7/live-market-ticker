@@ -8,6 +8,7 @@ import {
   type Access,
   accessLink,
   control,
+  linksNeedLogin,
   parseAccess,
   randomKey,
   sealOverlayKey,
@@ -115,6 +116,12 @@ function Setup() {
 
         {links ? (
           <div className="mt-10 space-y-6">
+            {linksNeedLogin() && (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+                This is Lovable&apos;s private preview: OBS would hit a Lovable login with these
+                links. Publish the site and copy the overlay link from the dashboard there.
+              </div>
+            )}
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
               Save both links now (a password manager is ideal). They are the only way in; nothing
               else identifies you.
