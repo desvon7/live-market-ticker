@@ -4,7 +4,14 @@ import { Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppearanceShell } from "@/components/AppearanceShell";
 import { Input } from "@/components/ui/input";
-import { type Access, accessLink, control, randomKey } from "@/lib/market";
+import {
+  type Access,
+  accessLink,
+  control,
+  parseAccess,
+  randomKey,
+  sealOverlayKey,
+} from "@/lib/market";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -22,7 +29,8 @@ export const Route = createFileRoute("/")({
 });
 
 // One-time setup: creates the ticker and shows its two secret links. The
-// backend refuses a second ticker, so this page is harmless once used.
+// backend refuses a second ticker, so once it exists this page instead opens
+// the dashboard from a pasted link, on any device and any of the site's domains.
 function Setup() {
   const [links, setLinks] = useState<{ dashboard: string; overlay: string } | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -30,6 +38,8 @@ function Setup() {
   const [needsCode, setNeedsCode] = useState(false);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
+  const [exists, setExists] = useState<boolean | null>(null);
+  const [pasted, setPasted] = useState("");
 
   useEffect(() => {
     try {
@@ -37,7 +47,20 @@ function Setup() {
     } catch {
       // storage unavailable
     }
+    control<{ exists: boolean }>({ action: "exists" })
+      .then((r) => setExists(r.exists))
+      .catch(() => setExists(false));
   }, []);
+
+  // Accepts the full link (from any domain), or just the part after "#".
+  const pastedAccess = parseAccess(pasted.slice(pasted.indexOf("#") + 1));
+  const openPasted = () => {
+    if (!pastedAccess) return;
+    window.location.href = accessLink("/dashboard", pastedAccess).replace(
+      window.location.origin,
+      "",
+    );
+  };
 
   const create = async () => {
     setBusy(true);
@@ -49,6 +72,7 @@ function Setup() {
         action: "create",
         controlKey,
         overlayKey,
+        overlaySealed: await sealOverlayKey(controlKey, overlayKey),
         ...(code ? { setupCode: code } : {}),
       });
       const dashboard: Access = { id, key: controlKey };
@@ -64,9 +88,12 @@ function Setup() {
         overlay: accessLink("/overlay", overlay),
       });
     } catch (e) {
-      const err = e as Error & { data?: { needsSetupCode?: boolean } };
-      if (err.data?.needsSetupCode) setNeedsCode(true);
-      setError(err.message);
+      const err = e as Error & { data?: { needsSetupCode?: boolean; exists?: boolean } };
+      if (err.data?.exists) setExists(true);
+      else {
+        if (err.data?.needsSetupCode) setNeedsCode(true);
+        setError(err.message);
+      }
     } finally {
       setBusy(false);
     }
@@ -110,26 +137,59 @@ function Setup() {
           <div className="mt-10 space-y-4">
             {saved && (
               <Button asChild variant="secondary">
-                <a href={saved.replace(window.location.origin, "")}>Open my dashboard</a>
+                <a href={saved.replace(/^https?:\/\/[^/#]+/, "")}>Open my dashboard</a>
               </Button>
             )}
-            {needsCode && (
-              <Input
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="Setup code (TICKER_SETUP_CODE)"
-              />
+            {exists ? (
+              <div className="space-y-3">
+                <p className="text-sm">
+                  Your ticker is already set up. Paste your private dashboard link to open it on
+                  this device. It works on any computer and on any of this site&apos;s addresses.
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    value={pasted}
+                    onChange={(e) => setPasted(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && openPasted()}
+                    placeholder="https://…/dashboard#…"
+                    aria-label="Dashboard link"
+                  />
+                  <Button onClick={openPasted} disabled={!pastedAccess}>
+                    Open
+                  </Button>
+                </div>
+                {pasted && !pastedAccess && (
+                  <p className="text-sm text-red-400">
+                    That isn&apos;t a complete dashboard link. Copy the whole link, including the
+                    part after #.
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Lost the link? Run <code>delete from ticker_channels;</code> in the Supabase SQL
+                  editor, then reload this page to create the ticker again.
+                </p>
+              </div>
+            ) : (
+              <>
+                {needsCode && (
+                  <Input
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    placeholder="Setup code (TICKER_SETUP_CODE)"
+                  />
+                )}
+                <div>
+                  <Button onClick={create} disabled={busy || exists === null}>
+                    {busy ? "Creating…" : "Create my ticker"}
+                  </Button>
+                </div>
+                {error && <p className="text-sm text-red-400">{error}</p>}
+                <p className="text-xs text-muted-foreground">
+                  One ticker per Supabase project. Already made one on another computer? Its
+                  dashboard link opens it here too.
+                </p>
+              </>
             )}
-            <div>
-              <Button onClick={create} disabled={busy}>
-                {busy ? "Creating…" : "Create my ticker"}
-              </Button>
-            </div>
-            {error && <p className="text-sm text-red-400">{error}</p>}
-            <p className="text-xs text-muted-foreground">
-              One ticker per Supabase project. Lost your links? Delete the row in the{" "}
-              <code>ticker_channels</code> table and create it again.
-            </p>
           </div>
         )}
       </main>

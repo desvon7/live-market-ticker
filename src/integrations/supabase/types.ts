@@ -21,6 +21,7 @@ export type Database = {
           created_at: string
           id: string
           overlay_hash: string
+          overlay_sealed: string | null
           presets: Json
           previous_config: Json | null
           updated_at: string
@@ -32,6 +33,7 @@ export type Database = {
           created_at?: string
           id?: string
           overlay_hash: string
+          overlay_sealed?: string | null
           presets?: Json
           previous_config?: Json | null
           updated_at?: string
@@ -43,6 +45,7 @@ export type Database = {
           created_at?: string
           id?: string
           overlay_hash?: string
+          overlay_sealed?: string | null
           presets?: Json
           previous_config?: Json | null
           updated_at?: string

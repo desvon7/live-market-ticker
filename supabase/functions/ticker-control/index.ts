@@ -2,8 +2,9 @@
 // key from the secret link; keys are only ever stored as SHA-256 hashes.
 //
 // POST JSON { action, ... }:
-//   create  { controlKey, overlayKey, setupCode? } → { id }      (only when no ticker exists yet)
-//   read    { id, key, symbols? } → { config, previous, presets, relay, quotes }
+//   exists  {} → { exists }                                       (no key; lets setup ask for a link)
+//   create  { controlKey, overlayKey, overlaySealed?, setupCode? } → { id }   (only when none exists)
+//   read    { id, key, symbols? } → { config, previous, presets, overlaySealed, relay, quotes }
 //   status  { id, key, symbols? } → { relay, quotes }
 //           symbols: what the dashboard preview shows (the draft), so it gets prices
 //           too. While no overlay is open, read/status also refresh quotes and the
@@ -12,7 +13,10 @@
 //   apply   { id, key, config } → { config }   publishes to the overlay, keeps the old one for restore
 //   restore { id, key } → { config }
 //   preset  { id, key, name, config } / deletePreset { id, key, name } → { presets }
-//   rotate  { id, key, role: "control" | "overlay", newKey } → { ok }
+//   rotate  { id, key, role: "control" | "overlay", newKey, overlaySealed? } → { ok }
+//   seal    { id, key, overlaySealed } → { ok }
+//           overlaySealed is the overlay key encrypted in the browser with the dashboard
+//           key, so any device with the dashboard link can show the overlay link.
 import { admin, keyPattern, sha256, uuidPattern } from "../_shared/db.ts";
 import { corsHeaders, json } from "../_shared/http.ts";
 import { finnhub, ProviderError } from "../_shared/finnhub.ts";
@@ -49,6 +53,13 @@ Deno.serve(async (req) => {
   try {
     const action = str(body["action"]);
     if (action === "create") return await create(body);
+    if (action === "exists") {
+      const { count, error } = await admin
+        .from("ticker_channels")
+        .select("id", { count: "exact", head: true });
+      if (error) return json({ error: "Database unavailable" }, 503);
+      return json({ exists: (count ?? 0) > 0 });
+    }
     const id = str(body["id"]);
     const key = str(body["key"]);
     if (!uuidPattern.test(id) || !keyPattern.test(key))
@@ -70,6 +81,7 @@ Deno.serve(async (req) => {
           config,
           previous: row.previous_config ? sanitizeConfig(row.previous_config) : null,
           presets,
+          overlaySealed: await readSealed(id),
           ...(await liveState(config, body["symbols"])),
         });
       case "status":
@@ -107,7 +119,14 @@ Deno.serve(async (req) => {
         await update(id, {
           [role === "control" ? "control_hash" : "overlay_hash"]: await sha256(newKey),
         });
+        // The old seal no longer matches either key, so replace or clear it.
+        await storeSealed(id, sealed(body["overlaySealed"]));
         return json({ ok: true });
+      }
+      case "seal": {
+        const value = sealed(body["overlaySealed"]);
+        if (!value) return json({ error: "Invalid overlay seal." }, 400);
+        return json({ ok: await storeSealed(id, value) });
       }
       default:
         return json({ error: "Unknown action" }, 400);
@@ -117,6 +136,28 @@ Deno.serve(async (req) => {
     return json({ error: "Something went wrong. Try again." }, 500);
   }
 });
+
+const sealedPattern = /^[A-Za-z0-9_-]{40,200}$/;
+const sealed = (value: unknown) => (sealedPattern.test(str(value)) ? str(value) : null);
+
+// overlay_sealed comes from a later migration; until it is applied, links
+// still work and only cross-device overlay links are unavailable.
+async function readSealed(id: string): Promise<string | null> {
+  const { data, error } = await admin
+    .from("ticker_channels")
+    .select("overlay_sealed")
+    .eq("id", id)
+    .maybeSingle();
+  return error ? null : ((data?.overlay_sealed as string | null) ?? null);
+}
+async function storeSealed(id: string, value: string | null) {
+  const { error } = await admin
+    .from("ticker_channels")
+    .update({ overlay_sealed: value })
+    .eq("id", id);
+  if (error) console.error("overlay_sealed unavailable", error.message);
+  return !error;
+}
 
 async function update(id: string, values: Record<string, unknown>) {
   const { error } = await admin.from("ticker_channels").update(values).eq("id", id);
@@ -147,6 +188,8 @@ async function create(body: Body) {
       409,
     );
   if (error || !data) throw error ?? new Error("Insert failed");
+  const seal = sealed(body["overlaySealed"]);
+  if (seal) await storeSealed(data.id, seal);
   return json({ id: data.id });
 }
 

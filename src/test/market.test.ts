@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   activeSymbols,
   defaultConfig,
+  openOverlayKey,
   parseAccess,
+  randomKey,
   sanitizeConfig,
+  sealOverlayKey,
   securityKind,
   stocksForConfig,
   tradeBaseline,
@@ -11,10 +14,13 @@ import {
 } from "@/lib/market";
 
 describe("market config", () => {
-  it.each(["dark", "light", "glass"])("preserves the %s mode through stored overlay settings", (appearance) => {
-    const saved = JSON.parse(JSON.stringify(sanitizeConfig({ ...defaultConfig, appearance })));
-    expect(sanitizeConfig(saved).appearance).toBe(appearance);
-  });
+  it.each(["dark", "light", "glass"])(
+    "preserves the %s mode through stored overlay settings",
+    (appearance) => {
+      const saved = JSON.parse(JSON.stringify(sanitizeConfig({ ...defaultConfig, appearance })));
+      expect(sanitizeConfig(saved).appearance).toBe(appearance);
+    },
+  );
   it("defaults older or invalid appearance settings to dark", () => {
     expect(sanitizeConfig({}).appearance).toBe("dark");
     expect(sanitizeConfig({ appearance: "invalid" }).appearance).toBe("dark");
@@ -110,5 +116,16 @@ describe("trade baselines", () => {
     expect(tradeBaseline(snapshot, fridayClose + 3_600_000)).toBe(100);
     expect(tradeBaseline(snapshot, mondayPremarket)).toBe(105);
     expect(tradeBaseline(null, mondayPremarket)).toBeNull();
+  });
+});
+
+describe("overlay key sealing", () => {
+  it("opens only with the dashboard key that sealed it", async () => {
+    const control = randomKey();
+    const overlay = randomKey();
+    const sealed = await sealOverlayKey(control, overlay);
+    expect(sealed).toMatch(/^[A-Za-z0-9_-]{40,200}$/);
+    expect(await openOverlayKey(control, sealed)).toBe(overlay);
+    expect(await openOverlayKey(randomKey(), sealed)).toBeNull();
   });
 });
