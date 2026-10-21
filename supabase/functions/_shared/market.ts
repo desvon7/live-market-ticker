@@ -312,6 +312,28 @@ export function normalizeSymbol(value: unknown): string | null {
   return symbolPattern.test(symbol) ? symbol : null;
 }
 
+// Lovable's editor preview addresses ask for a Lovable login, which OBS can't
+// pass, so copied links must point at the published site instead.
+export function isLovablePreview(host: string) {
+  return (
+    /(^|\.)lovableproject(-dev)?\.com$/.test(host) ||
+    (/\.lovable\.app$/.test(host) && /^(id-)?preview-/.test(host))
+  );
+}
+
+// A site address links can be built on: https, public, and not a preview.
+export function normalizeOrigin(value: unknown): string | null {
+  if (typeof value !== "string" || value.length > 200) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || isLovablePreview(url.hostname)) return null;
+    if (url.hostname === "localhost" || !url.hostname.includes(".")) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
 export function normalizeDomain(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const domain = value

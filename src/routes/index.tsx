@@ -8,9 +8,11 @@ import {
   type Access,
   accessLink,
   control,
+  currentSite,
   linksNeedLogin,
   parseAccess,
   randomKey,
+  rememberSite,
   sealOverlayKey,
 } from "@/lib/market";
 
@@ -48,8 +50,11 @@ function Setup() {
     } catch {
       // storage unavailable
     }
-    control<{ exists: boolean }>({ action: "exists" })
-      .then((r) => setExists(r.exists))
+    control<{ exists: boolean; publicSite?: string | null }>({ action: "exists" })
+      .then((r) => {
+        rememberSite(r.publicSite);
+        setExists(r.exists);
+      })
       .catch(() => setExists(false));
   }, []);
 
@@ -57,10 +62,7 @@ function Setup() {
   const pastedAccess = parseAccess(pasted.slice(pasted.indexOf("#") + 1));
   const openPasted = () => {
     if (!pastedAccess) return;
-    window.location.href = accessLink("/dashboard", pastedAccess).replace(
-      window.location.origin,
-      "",
-    );
+    window.location.href = `/dashboard#${pastedAccess.id}.${pastedAccess.key}`;
   };
 
   const create = async () => {
@@ -74,6 +76,7 @@ function Setup() {
         controlKey,
         overlayKey,
         overlaySealed: await sealOverlayKey(controlKey, overlayKey),
+        site: currentSite(),
         ...(code ? { setupCode: code } : {}),
       });
       const dashboard: Access = { id, key: controlKey };
@@ -118,8 +121,9 @@ function Setup() {
           <div className="mt-10 space-y-6">
             {linksNeedLogin() && (
               <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
-                This is Lovable&apos;s private preview: OBS would hit a Lovable login with these
-                links. Publish the site and copy the overlay link from the dashboard there.
+                These links are on Lovable&apos;s private preview address, which would ask OBS to
+                log in. Publish the site and open your dashboard there once; after that, links
+                copied anywhere use the published address automatically.
               </div>
             )}
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">

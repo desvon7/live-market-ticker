@@ -3,6 +3,7 @@ import {
   activeSymbols,
   defaultConfig,
   isLovablePreview,
+  normalizeOrigin,
   openOverlayKey,
   parseAccess,
   randomKey,
@@ -140,5 +141,18 @@ describe("public links", () => {
     expect(isLovablePreview("57207cd6-1c82-4baf-a670-97d442b45f5d.lovableproject.com")).toBe(true);
     expect(isLovablePreview("live-market-ticker.lovable.app")).toBe(false);
     expect(isLovablePreview("ticker.example.com")).toBe(false);
+  });
+
+  it("only remembers public, non-preview https site addresses", () => {
+    expect(normalizeOrigin("https://ticker.example.com/dashboard#x")).toBe(
+      "https://ticker.example.com",
+    );
+    expect(normalizeOrigin("https://live-market-ticker.lovable.app")).toBe(
+      "https://live-market-ticker.lovable.app",
+    );
+    expect(normalizeOrigin("https://id-preview--abc.lovable.app")).toBeNull();
+    expect(normalizeOrigin("http://ticker.example.com")).toBeNull();
+    expect(normalizeOrigin("https://localhost:8080")).toBeNull();
+    expect(normalizeOrigin("javascript:alert(1)")).toBeNull();
   });
 });
