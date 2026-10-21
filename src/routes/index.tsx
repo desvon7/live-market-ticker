@@ -226,7 +226,7 @@ function Setup() {
               {error && <p className="text-sm text-red-400">{error}</p>}
               {exists && !currentAccess && (
                 <p className="text-xs text-muted-foreground">
-                  Lost every link? Run <code>delete from ticker_channels;</code> in the Supabase SQL
+                  Lost every link? Run <code>delete from public.ticker_channels;</code> in the Supabase SQL
                   editor, then reload this page.
                 </p>
               )}

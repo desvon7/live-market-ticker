@@ -67,7 +67,7 @@ supabase functions deploy ticker-logo
 5. **Frontend:** in Lovable, click **Publish** (or **Share → Publish**). Commits pushed to `main` sync into Lovable first. If you previously added `FINNHUB_API_KEY` or `LOGO_DEV_PUBLISHABLE_KEY` as Lovable secrets, delete them there; the app no longer reads them.
 6. Open the published site's `/` page right away and click **Create my ticker**. Save both links in a password manager. Only one ticker can exist per project, so nobody else can create one after you. To also lock the setup page before you get to it, set `TICKER_SETUP_CODE`.
 
-Lost both links? Run `delete from ticker_channels;` in the Supabase SQL editor, then create the ticker again.
+Lost both links? Run `delete from public.ticker_channels;` in the Supabase SQL editor, then create the ticker again. (Leave `ticker_relay` alone: its single row is the connection lock.)
 
 ## OBS setup
 
