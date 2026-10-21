@@ -1,0 +1,2 @@
+DROP POLICY IF EXISTS "Only trusted ticker service" ON public.ticker_channels;
+CREATE POLICY "Only trusted ticker service" ON public.ticker_channels FOR ALL TO service_role USING (true) WITH CHECK (true);
