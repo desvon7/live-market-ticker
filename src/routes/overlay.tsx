@@ -8,7 +8,15 @@ import { useTickerFeed } from "@/lib/use-ticker-feed";
 // The link is /overlay#<id>.<overlay key>; nothing here is interactive.
 export const Route = createFileRoute("/overlay")({
   head: () => ({
-    meta: [{ title: "Ticker overlay" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [
+      { title: "Javon Journey | Live ticker overlay" },
+      { name: "description", content: "Transparent Javon Journey market ticker overlay for OBS broadcasts." },
+      { property: "og:title", content: "Javon Journey | Live ticker overlay" },
+      { property: "og:description", content: "Live market prices in a transparent broadcast overlay." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },

@@ -510,7 +510,8 @@ function StatusCap({
   const fs = config.fontSize;
   return (
     <div
-      title={message ?? undefined}
+      title={[title, detail, message].filter(Boolean).join(" · ")}
+      aria-label={`Subscribe to Javon Journey. ${title}. ${detail}`}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -543,7 +544,10 @@ function StatusCap({
             boxShadow: dot === config.upColor ? `0 0 0 3px ${dot}22` : undefined,
           }}
         />
-        {title}
+        Subscribe
+      </span>
+      <span style={{ fontSize: fs * 0.74, fontWeight: 650, whiteSpace: "nowrap" }}>
+        Javon Journey
       </span>
       <span style={{ fontSize: fs * 0.58, color: "rgba(235,235,245,0.6)", whiteSpace: "nowrap" }}>
         {detail}
