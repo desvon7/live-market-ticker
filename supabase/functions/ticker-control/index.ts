@@ -4,6 +4,9 @@
 // POST JSON { action, ... }:
 //   exists  {} → { exists, publicSite }                           (no key; lets setup ask for a link)
 //   create  { controlKey, overlayKey, overlaySealed?, site?, setupCode? } → { id }  (only when none exists)
+//   replace { id, key, controlKey, overlayKey, overlaySealed?, site? } → { id }
+//           "Create a new ticker" when one exists: proven by the current dashboard key,
+//           it issues new links (the old ones stop working) and resets settings.
 //   read    { id, key, symbols?, site? } → { config, previous, presets, overlaySealed, publicSite, relay, quotes }
 //           site: the page's address when it isn't a Lovable preview. The server keeps
 //           the latest one so links copied inside a preview point at the published site
@@ -127,6 +130,28 @@ Deno.serve(async (req) => {
         // The old seal no longer matches either key, so replace or clear it.
         await storeSealed(id, sealed(body["overlaySealed"]));
         return json({ ok: true });
+      }
+      case "replace": {
+        const controlKey = str(body["controlKey"]);
+        const overlayKey = str(body["overlayKey"]);
+        if (
+          !keyPattern.test(controlKey) ||
+          !keyPattern.test(overlayKey) ||
+          controlKey === overlayKey
+        )
+          return json({ error: "Invalid keys." }, 400);
+        // The relay notices the new overlay hash within 5 s and disconnects old overlays.
+        await update(id, {
+          control_hash: await sha256(controlKey),
+          overlay_hash: await sha256(overlayKey),
+          config: defaultConfig,
+          previous_config: null,
+          presets: {},
+        });
+        await storeSealed(id, sealed(body["overlaySealed"]));
+        const site = normalizeOrigin(body["site"]);
+        if (site) await storeSite(id, site);
+        return json({ id });
       }
       case "seal": {
         const value = sealed(body["overlaySealed"]);

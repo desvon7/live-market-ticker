@@ -65,20 +65,39 @@ function Setup() {
     window.location.href = `/dashboard#${pastedAccess.id}.${pastedAccess.key}`;
   };
 
+  // The dashboard this browser already knows, or the one pasted above.
+  const savedAccess = saved ? parseAccess(saved.slice(saved.indexOf("#") + 1)) : null;
+  const currentAccess = pastedAccess ?? savedAccess;
+
   const create = async () => {
+    // Replacing needs proof of the current ticker: its dashboard link.
+    if (exists && !currentAccess) {
+      setError("To start over, paste your current dashboard link above first.");
+      return;
+    }
+    if (
+      exists &&
+      !window.confirm(
+        "Create a new ticker? Your current dashboard and overlay links stop working (update OBS with the new overlay link) and settings reset to the default preset.",
+      )
+    )
+      return;
     setBusy(true);
     setError(null);
     const controlKey = randomKey();
     const overlayKey = randomKey();
     try {
-      const { id } = await control<{ id: string }>({
-        action: "create",
+      const keys = {
         controlKey,
         overlayKey,
         overlaySealed: await sealOverlayKey(controlKey, overlayKey),
         site: currentSite(),
-        ...(code ? { setupCode: code } : {}),
-      });
+      };
+      const { id } = await control<{ id: string }>(
+        exists && currentAccess
+          ? { action: "replace", ...currentAccess, ...keys }
+          : { action: "create", ...keys, ...(code ? { setupCode: code } : {}) },
+      );
       const dashboard: Access = { id, key: controlKey };
       const overlay: Access = { id, key: overlayKey };
       try {
@@ -145,62 +164,73 @@ function Setup() {
             </Button>
           </div>
         ) : (
-          <div className="mt-10 space-y-4">
-            {saved && (
-              <Button asChild variant="secondary">
-                <a href={saved.replace(/^https?:\/\/[^/#]+/, "")}>Open my dashboard</a>
-              </Button>
-            )}
-            {exists ? (
-              <div className="space-y-3">
-                <p className="text-sm">
-                  Your ticker is already set up. Paste your private dashboard link to open it on
-                  this device. It works on any computer and on any of this site&apos;s addresses.
+          <div className="mt-10 space-y-8">
+            <section className="space-y-3 rounded-xl border border-border p-5">
+              <h2 className="text-sm font-semibold">Open my dashboard</h2>
+              {savedAccess ? (
+                <Button asChild>
+                  <a href={`/dashboard#${savedAccess.id}.${savedAccess.key}`}>Open my dashboard</a>
+                </Button>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {exists === false
+                    ? "No ticker yet. Create one below."
+                    : "Paste your private dashboard link once; this browser remembers it after that."}
                 </p>
+              )}
+              {exists !== false && (
                 <div className="flex gap-2">
                   <Input
                     value={pasted}
                     onChange={(e) => setPasted(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && openPasted()}
-                    placeholder="https://…/dashboard#…"
+                    placeholder={
+                      savedAccess ? "Or paste a different dashboard link" : "https://…/dashboard#…"
+                    }
                     aria-label="Dashboard link"
                   />
-                  <Button onClick={openPasted} disabled={!pastedAccess}>
+                  <Button variant="secondary" onClick={openPasted} disabled={!pastedAccess}>
                     Open
                   </Button>
                 </div>
-                {pasted && !pastedAccess && (
-                  <p className="text-sm text-red-400">
-                    That isn&apos;t a complete dashboard link. Copy the whole link, including the
-                    part after #.
-                  </p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Lost the link? Run <code>delete from ticker_channels;</code> in the Supabase SQL
-                  editor, then reload this page to create the ticker again.
+              )}
+              {pasted && !pastedAccess && (
+                <p className="text-sm text-red-400">
+                  That isn&apos;t a complete dashboard link. Copy the whole link, including the part
+                  after #.
                 </p>
-              </div>
-            ) : (
-              <>
-                {needsCode && (
-                  <Input
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    placeholder="Setup code (TICKER_SETUP_CODE)"
-                  />
-                )}
-                <div>
-                  <Button onClick={create} disabled={busy || exists === null}>
-                    {busy ? "Creating…" : "Create my ticker"}
-                  </Button>
-                </div>
-                {error && <p className="text-sm text-red-400">{error}</p>}
+              )}
+            </section>
+
+            <section className="space-y-3 rounded-xl border border-border p-5">
+              <h2 className="text-sm font-semibold">Create a new ticker</h2>
+              <p className="text-sm text-muted-foreground">
+                {exists
+                  ? "Starts over with new dashboard and overlay links and the default settings. The old links stop working."
+                  : "Creates your ticker and shows its private dashboard link and OBS overlay link."}
+              </p>
+              {needsCode && (
+                <Input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="Setup code (TICKER_SETUP_CODE)"
+                />
+              )}
+              <Button
+                variant={exists ? "outline" : "default"}
+                onClick={create}
+                disabled={busy || exists === null}
+              >
+                {busy ? "Creating…" : exists ? "Create a new ticker" : "Create my ticker"}
+              </Button>
+              {error && <p className="text-sm text-red-400">{error}</p>}
+              {exists && !currentAccess && (
                 <p className="text-xs text-muted-foreground">
-                  One ticker per Supabase project. Already made one on another computer? Its
-                  dashboard link opens it here too.
+                  Lost every link? Run <code>delete from ticker_channels;</code> in the Supabase SQL
+                  editor, then reload this page.
                 </p>
-              </>
-            )}
+              )}
+            </section>
           </div>
         )}
       </main>
