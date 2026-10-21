@@ -72,7 +72,7 @@ Lost both links? Run `delete from ticker_channels;` in the Supabase SQL editor, 
 ## OBS setup
 
 1. In OBS, open **Sources → + → Browser**.
-2. **URL:** paste the overlay link (`https://<your-site>/overlay#…`).
+2. **URL:** paste the overlay link (`https://<your-site>/overlay#…`). Use the **published** site's address. Lovable's editor preview addresses (`id-preview--….lovable.app`, `….lovableproject.com`) ask for a Lovable login, which OBS can't get past. Setting `VITE_PUBLIC_SITE_URL` makes copied links always use the published address. The overlay page and the Edge Functions need no login.
 3. **Width 1920, Height 1080.** Leave Custom CSS empty; the page is already transparent outside the ticker.
 4. Turn **off** "Shutdown source when not visible" so the ticker stays connected. You can turn on "Refresh browser when scene becomes active", but it isn't needed.
 5. The strip sits flush with the bottom of the 1920 × 1080 canvas. Leave the source at 0,0 with no scaling. To keep a webcam corner clear, set **Appearance → Safe area** in the dashboard.

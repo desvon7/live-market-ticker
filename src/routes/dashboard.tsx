@@ -31,6 +31,7 @@ import {
   type FeedStatus,
   formatTime,
   limits,
+  linksNeedLogin,
   logoSrc,
   type MarketSession,
   modeLabels,
@@ -1438,6 +1439,13 @@ function LinksPanel({
   return (
     <div className="mt-4 grid gap-6 lg:grid-cols-2">
       <Card title="Overlay link (OBS Browser Source)">
+        {linksNeedLogin() && (
+          <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+            You&apos;re on Lovable&apos;s private preview, so this link would ask OBS to log in to
+            Lovable. Publish the site, open this dashboard on the published address, and copy the
+            overlay link from there.
+          </p>
+        )}
         <p className="text-xs text-muted-foreground">
           Treat it like a password: anyone with it can display your ticker (but cannot change it).
           It shows on any device you open this dashboard on. Creating a new one stops the old link,

@@ -17,9 +17,19 @@ export function parseAccess(hash: string): Access | null {
   return match ? { id: match[1] as string, key: match[2] as string } : null;
 }
 
-export function accessLink(path: "/overlay" | "/dashboard", access: Access) {
-  return `${window.location.origin}${path}#${access.id}.${access.key}`;
+// Lovable's editor preview addresses ask for a Lovable login, which OBS can't
+// do, so links are built on the published site when VITE_PUBLIC_SITE_URL is set.
+const publicSiteUrl = String(import.meta.env["VITE_PUBLIC_SITE_URL"] ?? "").replace(/\/+$/, "");
+export function isLovablePreview(host = window.location.hostname) {
+  return (
+    /(^|\.)lovableproject(-dev)?\.com$/.test(host) ||
+    (/\.lovable\.app$/.test(host) && /^(id-)?preview-/.test(host))
+  );
 }
+export function accessLink(path: "/overlay" | "/dashboard", access: Access) {
+  return `${publicSiteUrl || window.location.origin}${path}#${access.id}.${access.key}`;
+}
+export const linksNeedLogin = () => !publicSiteUrl && isLovablePreview();
 
 // The overlay key is stored on the server encrypted with the dashboard key
 // (AES-GCM, key = SHA-256 of the dashboard key), so every device with the

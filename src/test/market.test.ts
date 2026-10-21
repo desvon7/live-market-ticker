@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   activeSymbols,
   defaultConfig,
+  isLovablePreview,
   openOverlayKey,
   parseAccess,
   randomKey,
@@ -127,5 +128,17 @@ describe("overlay key sealing", () => {
     expect(sealed).toMatch(/^[A-Za-z0-9_-]{40,200}$/);
     expect(await openOverlayKey(control, sealed)).toBe(overlay);
     expect(await openOverlayKey(randomKey(), sealed)).toBeNull();
+  });
+});
+
+describe("public links", () => {
+  it("recognises Lovable preview hosts that need a Lovable login", () => {
+    expect(isLovablePreview("id-preview--57207cd6-1c82-4baf-a670-97d442b45f5d.lovable.app")).toBe(
+      true,
+    );
+    expect(isLovablePreview("preview--live-market-ticker.lovable.app")).toBe(true);
+    expect(isLovablePreview("57207cd6-1c82-4baf-a670-97d442b45f5d.lovableproject.com")).toBe(true);
+    expect(isLovablePreview("live-market-ticker.lovable.app")).toBe(false);
+    expect(isLovablePreview("ticker.example.com")).toBe(false);
   });
 });
