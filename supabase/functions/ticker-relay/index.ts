@@ -19,6 +19,7 @@ import {
   RelayClose,
   sanitizeConfig,
   type TickerConfig,
+  tradeBaseline,
   withChange,
 } from "../_shared/market.ts";
 
@@ -170,7 +171,7 @@ async function startSession(
   let lastMarket = 0;
   let lastNews = 0;
   let status: FeedStatus = "connecting";
-  const baselines = new Map<string, number | null>();
+  const baselines = new Map<string, Quote | null>();
   const latest = new Map<string, Quote>();
   const pending = new Map<string, Quote>();
   const dirty = new Set<string>();
@@ -205,7 +206,7 @@ async function startSession(
       if (!alive || generation !== feedGeneration) return;
       try {
         const quote = await provider.quote(symbol);
-        baselines.set(symbol, quote?.previousClose ?? null);
+        baselines.set(symbol, quote);
         if (quote) {
           batch.push(quote);
           record(quote);
@@ -234,7 +235,8 @@ async function startSession(
           if (!subscribed.has(t.s) || !(t.p > 0) || !(t.t > 0)) continue;
           const previous = pending.get(t.s);
           if (previous && previous.timestamp > t.t) continue;
-          pending.set(t.s, withChange(t.s, t.p, t.t, baselines.get(t.s) ?? null, "trade"));
+          const baseline = tradeBaseline(baselines.get(t.s) ?? null, t.t);
+          pending.set(t.s, withChange(t.s, t.p, t.t, baseline, "trade"));
         }
       },
       (next, message) => setStatus(next, message),

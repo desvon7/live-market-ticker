@@ -1,5 +1,5 @@
 export * from "../../supabase/functions/_shared/market.ts";
-import type { Quote } from "../../supabase/functions/_shared/market.ts";
+import { etDay, type Quote } from "../../supabase/functions/_shared/market.ts";
 
 // Browser-safe settings only: the publishable URL of the Supabase project.
 // Provider and logo keys live in Supabase Edge Function secrets.
@@ -73,12 +73,21 @@ export function formatChange(quote: Quote) {
     pct: `${sign}${Math.abs(quote.percent).toFixed(2)}%`,
   };
 }
-export function formatTime(timestamp: number) {
-  return (
-    new Date(timestamp).toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      timeZone: "America/New_York",
-    }) + " ET"
-  );
+// Times from today show just the clock; older ones also name the day, so a
+// Friday close seen on Monday doesn't read like a fresh price.
+export function formatTime(timestamp: number, now = Date.now()) {
+  const date = new Date(timestamp);
+  const time = date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/New_York",
+  });
+  if (etDay(timestamp) === etDay(now)) return `${time} ET`;
+  const day = date.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "America/New_York",
+  });
+  return `${day}, ${time} ET`;
 }

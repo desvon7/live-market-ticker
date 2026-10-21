@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   activeSymbols,
   defaultConfig,
+  formatTime,
   parseAccess,
   sanitizeConfig,
   securityKind,
   stocksForConfig,
+  tradeBaseline,
   withChange,
 } from "@/lib/market";
 
@@ -88,5 +90,26 @@ describe("quotes and links", () => {
       key,
     });
     expect(parseAccess("#nope")).toBeNull();
+  });
+});
+
+describe("quote dates", () => {
+  // 2026-10-16 is a Friday; 20:00 UTC is 4:00 PM ET.
+  const fridayClose = Date.UTC(2026, 9, 16, 20, 0);
+  const mondayPremarket = Date.UTC(2026, 9, 19, 12, 0);
+
+  it("adds the day only when a time is not from today in ET", () => {
+    expect(formatTime(fridayClose, fridayClose + 60_000)).toBe("4:00 PM ET");
+    expect(formatTime(fridayClose, mondayPremarket)).toBe("Fri, Oct 16, 4:00 PM ET");
+    // 11:30 PM ET is still the same ET day even though it is the next UTC day.
+    const lateEt = Date.UTC(2026, 9, 17, 3, 30);
+    expect(formatTime(lateEt, Date.UTC(2026, 9, 16, 14, 0))).toBe("11:30 PM ET");
+  });
+
+  it("measures a new day's trades against the latest close", () => {
+    const snapshot = withChange("NVDA", 105, fridayClose, 100, "snapshot");
+    expect(tradeBaseline(snapshot, fridayClose + 3_600_000)).toBe(100);
+    expect(tradeBaseline(snapshot, mondayPremarket)).toBe(105);
+    expect(tradeBaseline(null, mondayPremarket)).toBeNull();
   });
 });

@@ -489,12 +489,12 @@ function StatusCap({
   const anyLive = Object.values(quotes).some((q) => freshness(q, now) === "live");
   let dot = "#8e8e93";
   let title = market ? sessionLabel[market.session] : "Markets";
-  let detail = latest ? `As of ${formatTime(latest)}` : "Loading quotes";
+  let detail = latest ? `As of ${formatTime(latest, now)}` : "Loading quotes";
   if (status === "connected" && anyLive) {
     dot = config.upColor;
     detail = "Live trades";
   } else if (market?.isOpen === false || market?.session === "closed") {
-    detail = latest ? `Last trade ${formatTime(latest)}` : "Last close";
+    detail = latest ? `Last trade ${formatTime(latest, now)}` : "Last close";
   }
   if (status === "reconnecting" || status === "connecting") {
     dot = "#ffd60a";
@@ -505,7 +505,7 @@ function StatusCap({
     detail = "Another copy is live";
   } else if (status === "error" || status === "offline") {
     dot = config.downColor;
-    detail = latest ? `Offline · ${formatTime(latest)}` : "Data unavailable";
+    detail = latest ? `Offline · ${formatTime(latest, now)}` : "Data unavailable";
   }
   const fs = config.fontSize;
   return (
