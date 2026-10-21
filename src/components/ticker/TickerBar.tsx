@@ -11,6 +11,7 @@ import {
 import {
   activeSymbols,
   formatChange,
+  formatDate,
   formatPrice,
   formatTime,
   freshness,
@@ -511,7 +512,7 @@ function StatusCap({
   return (
     <div
       title={[title, detail, message].filter(Boolean).join(" · ")}
-      aria-label={`Subscribe to Javon Journey. ${title}. ${detail}`}
+      aria-label={`Subscribe to Javon Journey. ${title}. ${detail}${latest ? `. ${formatDate(latest)}` : ""}`}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -552,6 +553,11 @@ function StatusCap({
       <span style={{ fontSize: fs * 0.58, color: "var(--ticker-muted)", whiteSpace: "nowrap" }}>
         {detail}
       </span>
+      {latest > 0 && (
+        <span style={{ fontSize: fs * 0.52, color: "var(--ticker-muted)", whiteSpace: "nowrap" }}>
+          {formatDate(latest)}
+        </span>
+      )}
     </div>
   );
 }

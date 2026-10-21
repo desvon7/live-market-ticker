@@ -73,6 +73,15 @@ export function formatChange(quote: Quote) {
     pct: `${sign}${Math.abs(quote.percent).toFixed(2)}%`,
   };
 }
+export function formatDate(timestamp: number) {
+  return new Date(timestamp).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "America/New_York",
+  });
+}
 export function formatTime(timestamp: number) {
   return (
     new Date(timestamp).toLocaleTimeString("en-US", {
