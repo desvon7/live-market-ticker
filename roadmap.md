@@ -2,8 +2,8 @@
 
 Implementation order: bottom overlay + real Finnhub relay first, then private dashboard; 1920×1080 transparent OBS canvas.
 
-- [ ] Replace fixed ticker cap with Subscribe / Javon Journey branding, preserving feed warnings
-- [ ] Add persistent Dark, Light, Apple Glass interface modes and verify switching
+- [x] Replace fixed ticker cap with Subscribe / Javon Journey branding, preserving feed warnings
+- [x] Add persistent Dark, Light, Apple Glass interface modes and verify switching
 
 - [x] Use the user's connected external Supabase project instead of Lovable Cloud
 - [x] Finnhub and Logo.dev keys live only in Supabase Edge Function secrets
