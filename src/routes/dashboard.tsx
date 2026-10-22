@@ -172,7 +172,18 @@ function Dashboard() {
         setDraftState(saved ?? sanitizeConfig(data.config));
         void syncOverlayKey(access, data.overlaySealed ?? null).then(setOverlayKey);
       })
-      .catch((e: Error) => setError(e.message));
+      .catch((e: Error & { status?: number }) => {
+        // A replaced link must not keep the home page's "Open my dashboard" stuck on it.
+        if (e.status === 403) {
+          try {
+            if (localStorage.getItem("ticker-dashboard-link") === accessLink("/dashboard", access))
+              localStorage.removeItem("ticker-dashboard-link");
+          } catch {
+            // storage unavailable
+          }
+        }
+        setError(e.message);
+      });
     const timer = setInterval(() => {
       control<LiveState>({ action: "status", ...access, symbols: shownRef.current })
         .then(setState)
