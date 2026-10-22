@@ -495,8 +495,8 @@ function StatusCap({
     detail = latest ? `Last trade ${formatTime(latest)}` : "Last close";
   }
   if (status === "reconnecting" || status === "connecting") {
-    dot = "#ffd60a";
-    detail = status === "connecting" && !latest ? "Connecting" : "Reconnecting";
+    // Viewers only need the price time; connection details live in the dashboard.
+    detail = latest ? `Last price ${formatTime(latest)}` : "Loading prices";
   } else if (status === "duplicate") {
     dot = "#ff9f0a";
     title = "Paused";

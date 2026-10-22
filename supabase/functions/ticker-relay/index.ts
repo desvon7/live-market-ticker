@@ -24,6 +24,7 @@ import {
 } from "../_shared/market.ts";
 
 const LEASE_MS = 45_000;
+const POLL_MS = 1_500;
 const HEARTBEAT_MS = 5_000;
 const FLUSH_MS = 400;
 const QUOTE_CACHE_MS = 15_000;
@@ -262,9 +263,31 @@ async function startSession(
           pending.set(t.s, withChange(t.s, t.p, t.t, baseline, "trade"));
         }
       },
-      (next, message) => setStatus(next, message),
+      (next, message) => {
+        streamUp = next === "connected";
+        setStatus(next, message);
+      },
     );
   }
+
+  // While the live stream is down, keep prices moving with REST snapshots:
+  // one symbol every 1.5 s (40 calls a minute, inside Finnhub's free 60).
+  let streamUp = false;
+  let pollIndex = 0;
+  const poll = setInterval(async () => {
+    if (!alive || streamUp || !symbols.length) return;
+    const symbol = symbols[pollIndex++ % symbols.length]!;
+    try {
+      const quote = await provider.quote(symbol);
+      if (!quote || !alive) return;
+      if (!baselines.has(symbol)) baselines.set(symbol, quote);
+      const current = latest.get(symbol);
+      if (current && current.timestamp > quote.timestamp) return;
+      pending.set(symbol, quote);
+    } catch {
+      // try the next symbol on the next tick
+    }
+  }, POLL_MS);
 
   async function refreshMarket(force = false) {
     if (!force && Date.now() - lastMarket < MARKET_MS) return;
@@ -393,6 +416,7 @@ async function startSession(
     clearInterval(flush);
     clearInterval(heartbeat);
     clearTimeout(rotation);
+    clearInterval(poll);
     lastQuoteCache = 0;
     await cacheQuotes().catch(() => {});
     if (release) {

@@ -129,9 +129,22 @@ export function finnhub(apiKey: string) {
             onStatus("error", "Unreadable market-data message");
           }
         };
-        ws.onerror = () => ws.close();
-        ws.onclose = () => {
-          if (socket === ws) schedule("Reconnecting to Finnhub");
+        let failure = "";
+        ws.onerror = (event) => {
+          failure = (event as ErrorEvent).message ?? "";
+          ws.close();
+        };
+        ws.onclose = (event) => {
+          // Surface Finnhub's reason (e.g. a 429 for a second connection on the
+          // same key) so the dashboard can say why the live stream is down.
+          const reason = redact(
+            [event.reason, failure].filter(Boolean).join(" ").slice(0, 160),
+            apiKey,
+          );
+          if (socket === ws)
+            schedule(
+              `Finnhub live stream unavailable${reason ? ` (${reason})` : ""}; refreshing prices instead`,
+            );
         };
       };
       open();
